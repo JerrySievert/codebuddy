@@ -1,0 +1,23 @@
+#!/usr/bin/env node
+
+'use strict';
+
+import parseArgs from 'minimist';
+import { commands, handler } from '../lib/cli/commands.mjs';
+
+const argv = parseArgs(process.argv.slice(2), { boolean: true });
+
+const command = argv._.shift();
+
+if (
+  command === undefined ||
+  commands[command] === undefined ||
+  argv.help ||
+  argv.h
+) {
+  commands.help.handler(argv);
+} else {
+  await handler(command, argv);
+}
+
+process.exit(0);

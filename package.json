@@ -1,0 +1,24 @@
+{
+  "name": "build-knowledge-graph",
+  "version": "1.0.0",
+  "main": "index.mjs",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.16.0",
+    "minimist": "^1.2.8",
+    "postgres": "^3.4.7",
+    "tree-sitter": "^0.25.0",
+    "tree-sitter-c": "^0.24.1",
+    "zod": "^3.21.4"
+  },
+  "devDependencies": {
+    "birds": "https://github.com/JerrySievert/birds",
+    "st": "https://github.com/JerrySievert/st"
+  },
+  "scripts": {
+    "migrate:create": "birds create",
+    "migrate": "birds up",
+    "migrate:down": "birds down",
+    "test": "st -spec ./tests/index.mjs"
+  }
+}

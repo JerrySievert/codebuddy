@@ -1,0 +1,2 @@
+{"_type": "tag", "name": "main", "path": "test.c", "pattern": "/^int main( ) {$/", "language": "C", "line": 11, "typeref": "typename:int", "kind": "function", "signature": "()", "roles": "def", "end": 16}
+{"_type": "tag", "name": "my_function", "path": "test.c", "pattern": "/^void my_function(int arg) { printf(\"Hello, World! (%d)\\\\n\", arg); }$/", "language": "C", "line": 9, "typeref": "typename:void", "kind": "function", "signature": "(int arg)", "roles": "def", "end": 9}
