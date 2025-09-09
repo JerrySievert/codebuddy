@@ -15,9 +15,15 @@ if (
   argv.help ||
   argv.h
 ) {
+  argv._.unshift(command);
   commands.help.handler(argv);
 } else {
-  await handler(command, argv);
+  try {
+    await handler(command, argv);
+  } catch (error) {
+    console.error(error.message);
+    //process.exit(1);
+  }
 }
 
 process.exit(0);
