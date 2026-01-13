@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CodeBuddy</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/d3@7"></script>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <div class="container" style="display: flex; align-items: center;">
+          <div class="header-content">
+            <img
+              src="/image/codebuddy.png"
+              alt="CodeBuddy"
+              class="logo"
+              @click="resetToHome"
+            />
+            <h1>CodeBuddy</h1>
+          </div>
+          <div class="header-nav">
+            <button
+              class="nav-item"
+              :class="{ active: showJobsView }"
+              @click="toggleJobsView"
+            >
+              Jobs
+              <span
+                v-if="jobQueueStats.running > 0"
+                class="nav-badge running"
+              >{{ jobQueueStats.running }}</span>
+              <span
+                v-else-if="jobQueueStats.queued > 0"
+                class="nav-badge"
+              >{{ jobQueueStats.queued }}</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div class="container">
+        <div class="layout">
+          <div class="sidebar">
+            <div class="card">
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  border-bottom: 1px solid #eee;
+                  padding-bottom: 10px;
+                  margin-bottom: 10px;
+                "
+              >
+                <h2 style="margin: 0; border: none; padding: 0">Projects</h2>
+                <button class="btn-import" @click="showImportModal = true">
+                  + Import
+                </button>
+              </div>
+              <div v-if="loadingProjects" class="loading">Loading...</div>
+              <div v-else>
+                <div
+                  v-for="project in projects"
+                  :key="project.name"
+                  class="project-item"
+                  :class="{ active: selectedProject?.name === project.name }"
+                  @click="selectProject(project)"
+                >
+                  <div class="project-name">{{ project.name }}</div>
+                  <div class="project-meta">
+                    {{ project.entity_count }} entities &bull; {{
+                    project.source_count }} files
+                  </div>
+                  <div class="project-actions" @click.stop>
+                    <button
+                      class="btn-refresh"
+                      @click="refreshProject(project.name)"
+                      :disabled="refreshingProject === project.name"
+                    >
+                      {{ refreshingProject === project.name ? 'Refreshing...' :
+                      'Refresh' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="main">
+            <!-- Search Card -->
+            <div class="card">
+              <h2>Search Functions</h2>
+              <div class="search-box">
+                <input
+                  v-model="searchQuery"
+                  @keyup.enter="searchFunctions"
+                  placeholder="Enter function name..."
+                />
+                <button @click="searchFunctions" :disabled="!searchQuery">
+                  Search
+                </button>
+              </div>
+
+              <div v-if="searchResults.length > 0" class="function-list">
+                <div
+                  v-for="fn in searchResults"
+                  :key="fn.id"
+                  class="function-item"
+                  @click="selectFunction(fn)"
+                >
+                  <div class="function-name">
+                    {{ fn.symbol }}{{ fn.parameters || '' }}
+                  </div>
+                  <div class="function-location">
+                    {{ fn.filename }}:{{ fn.start_line }}
+                  </div>
+                </div>
+              </div>
+              <div v-else-if="hasSearched" class="empty-state">
+                No functions found
+              </div>
+            </div>
+
+            <!-- Call Graph View -->
+            <div v-if="showCallGraph" class="card">
+              <div class="breadcrumb">
+                <span class="breadcrumb-item" @click="closeCallGraph"
+                  >{{ selectedProject?.name }}</span
+                >
+                <span class="breadcrumb-separator">›</span>
+                <span class="breadcrumb-current"
+                  >Call Graph: {{ callGraphRoot }}</span
+                >
+              </div>
+              <h2>Call Graph: {{ callGraphRoot }}</h2>
+              <div v-if="loadingCallGraph" class="loading">
+                Loading call graph...
+              </div>
+              <div v-else class="graph-container" ref="graphContainer">
+                <div class="graph-controls">
+                  <button @click="zoomIn">Zoom In</button>
+                  <button @click="zoomOut">Zoom Out</button>
+                  <button @click="resetZoom">Reset</button>
+                </div>
+                <svg class="graph-svg" ref="graphSvg"></svg>
+                <div v-if="selectedGraphNode" class="node-info-panel">
+                  <div class="node-info-header">
+                    {{ selectedGraphNode.symbol }}{{
+                    selectedGraphNode.parameters || '' }}
+                  </div>
+                  <div class="node-info-body">
+                    <div class="node-info-row">
+                      <div class="node-info-label">Location</div>
+                      <div class="node-info-value">
+                        {{ selectedGraphNode.filename }}:{{
+                        selectedGraphNode.start_line }}
+                      </div>
+                    </div>
+                    <div
+                      v-if="selectedGraphNode.return_type"
+                      class="node-info-row"
+                    >
+                      <div class="node-info-label">Return Type</div>
+                      <div class="node-info-value">
+                        {{ selectedGraphNode.return_type }}
+                      </div>
+                    </div>
+                    <div v-if="selectedGraphNode.comment" class="node-info-row">
+                      <div class="node-info-label">Comment</div>
+                      <div class="node-info-value">
+                        {{ selectedGraphNode.comment }}
+                      </div>
+                    </div>
+                    <div v-if="selectedGraphNode.source" class="node-info-row">
+                      <div class="node-info-label">Source</div>
+                      <div class="node-info-source">
+                        {{ selectedGraphNode.source }}
+                      </div>
+                    </div>
+                    <div style="margin-top: 12px">
+                      <button
+                        class="btn-primary"
+                        @click="viewFunctionDetails(selectedGraphNode)"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        class="btn-secondary"
+                        @click="loadCallGraphForNode(selectedGraphNode.symbol)"
+                      >
+                        Recenter Graph
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="graph-legend">
+                  <div class="legend-item">
+                    <div
+                      class="legend-circle"
+                      style="background: #fce4ec; border-color: #e91e63"
+                    ></div>
+                    <span>Root function</span>
+                  </div>
+                  <div class="legend-item">
+                    <div
+                      class="legend-circle"
+                      style="background: #e3f2fd; border-color: #2196f3"
+                    ></div>
+                    <span>Related functions</span>
+                  </div>
+                  <div class="legend-item">
+                    <span style="color: #999"
+                      >→ Arrow shows call direction</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Jobs View -->
+            <div v-if="showJobsView" class="card">
+              <h2>Job Queue</h2>
+
+              <!-- Stats Summary -->
+              <div class="job-stats-summary">
+                <div class="job-stat">
+                  <span class="job-stat-value">{{ jobQueueStats.running }}</span>
+                  <span class="job-stat-label">Running</span>
+                </div>
+                <div class="job-stat">
+                  <span class="job-stat-value">{{ jobQueueStats.queued }}</span>
+                  <span class="job-stat-label">Queued</span>
+                </div>
+                <div class="job-stat">
+                  <span class="job-stat-value">{{ jobQueueStats.completed }}</span>
+                  <span class="job-stat-label">Completed</span>
+                </div>
+                <div class="job-stat">
+                  <span class="job-stat-value">{{ jobQueueStats.failed }}</span>
+                  <span class="job-stat-label">Failed</span>
+                </div>
+              </div>
+
+              <!-- Job List -->
+              <div v-if="jobs.length === 0" class="empty-state">
+                No jobs in queue. Import or refresh a project to see jobs here.
+              </div>
+
+              <div v-else class="job-list">
+                <div
+                  v-for="job in jobs"
+                  :key="job.id"
+                  class="job-card"
+                  :class="'job-card-' + job.status"
+                >
+                  <div class="job-card-header">
+                    <div class="job-card-title">
+                      <span class="job-type-badge">{{ job.type }}</span>
+                      <span class="job-name">{{ job.metadata?.name || job.metadata?.path || job.id }}</span>
+                    </div>
+                    <span class="job-status-badge" :class="job.status">{{ job.status }}</span>
+                  </div>
+
+                  <div class="job-card-details">
+                    <div v-if="job.metadata?.path" class="job-detail">
+                      <span class="job-detail-label">Path:</span>
+                      <span class="job-detail-value">{{ job.metadata.path }}</span>
+                    </div>
+                    <div class="job-detail">
+                      <span class="job-detail-label">Created:</span>
+                      <span class="job-detail-value">{{ formatDate(job.created_at) }}</span>
+                    </div>
+                    <div v-if="job.started_at" class="job-detail">
+                      <span class="job-detail-label">Started:</span>
+                      <span class="job-detail-value">{{ formatDate(job.started_at) }}</span>
+                    </div>
+                    <div v-if="job.completed_at" class="job-detail">
+                      <span class="job-detail-label">Completed:</span>
+                      <span class="job-detail-value">{{ formatDate(job.completed_at) }}</span>
+                    </div>
+                    <div v-if="job.completed_at && job.started_at" class="job-detail">
+                      <span class="job-detail-label">Duration:</span>
+                      <span class="job-detail-value">{{ formatDuration(job.started_at, job.completed_at) }}</span>
+                    </div>
+                  </div>
+
+                  <div v-if="job.status === 'running' || job.status === 'queued'" class="job-progress-section">
+                    <div class="job-progress-text">{{ job.message }} ({{ job.progress }}%)</div>
+                    <div class="job-progress-bar-large">
+                      <div
+                        class="job-progress-fill-large"
+                        :style="{ width: job.progress + '%' }"
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div v-if="job.error" class="job-error-section">
+                    <div class="job-error-title">Error:</div>
+                    <div class="job-error-message">{{ job.error }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Project View (no file or function selected) -->
+            <div
+              v-if="selectedProject && !selectedFile && !selectedFunction && !showCallGraph && !showJobsView"
+              class="card"
+            >
+              <h2>Project: {{ selectedProject.name }}</h2>
+              <div class="detail-section">
+                <h3>Path</h3>
+                <div>{{ projectInfo?.path }}</div>
+              </div>
+
+              <!-- Project Complexity Summary -->
+              <div v-if="projectInfo?.complexity" class="complexity-card">
+                <h3>Code Complexity</h3>
+                <div class="complexity-grid">
+                  <div class="complexity-metric">
+                    <div class="value">
+                      {{ projectInfo.complexity.total_functions }}
+                    </div>
+                    <div class="label">Functions</div>
+                  </div>
+                  <div class="complexity-metric">
+                    <div class="value">
+                      {{ projectInfo.complexity.avg_cyclomatic }}
+                    </div>
+                    <div class="label">Avg Cyclomatic</div>
+                  </div>
+                  <div class="complexity-metric">
+                    <div class="value">
+                      {{ projectInfo.complexity.max_cyclomatic }}
+                    </div>
+                    <div class="label">Max Cyclomatic</div>
+                  </div>
+                  <div class="complexity-metric">
+                    <div class="value">
+                      {{ projectInfo.complexity.total_loc }}
+                    </div>
+                    <div class="label">Total LOC</div>
+                  </div>
+                  <div class="complexity-metric">
+                    <div class="value">
+                      {{ projectInfo.complexity.avg_loc }}
+                    </div>
+                    <div class="label">Avg LOC</div>
+                  </div>
+                  <div class="complexity-metric">
+                    <div class="value">
+                      {{ projectInfo.complexity.max_nesting_depth }}
+                    </div>
+                    <div class="label">Max Nesting</div>
+                  </div>
+                </div>
+                <div
+                  v-if="projectInfo.complexity.total_functions > 0"
+                  class="complexity-distribution"
+                >
+                  <div
+                    class="segment segment-low"
+                    :style="{ width: getDistributionPercent(projectInfo.complexity, 'low') + '%' }"
+                    :title="'Simple: ' + projectInfo.complexity.complexity_distribution.low"
+                  ></div>
+                  <div
+                    class="segment segment-moderate"
+                    :style="{ width: getDistributionPercent(projectInfo.complexity, 'moderate') + '%' }"
+                    :title="'Moderate: ' + projectInfo.complexity.complexity_distribution.moderate"
+                  ></div>
+                  <div
+                    class="segment segment-high"
+                    :style="{ width: getDistributionPercent(projectInfo.complexity, 'high') + '%' }"
+                    :title="'Complex: ' + projectInfo.complexity.complexity_distribution.high"
+                  ></div>
+                  <div
+                    class="segment segment-very_high"
+                    :style="{ width: getDistributionPercent(projectInfo.complexity, 'very_high') + '%' }"
+                    :title="'Very Complex: ' + projectInfo.complexity.complexity_distribution.very_high"
+                  ></div>
+                </div>
+              </div>
+
+              <div class="action-bar">
+                <button class="btn-secondary" @click="showAllFunctions">
+                  Show All Functions
+                </button>
+                <button class="btn-primary" @click="openCallGraph('main')">
+                  View Call Graph (main)
+                </button>
+              </div>
+              <div class="detail-section">
+                <h3>
+                  Files ({{ projectInfo?.files?.length || 0 }}) - Click to view
+                  functions
+                </h3>
+                <div class="file-list">
+                  <div
+                    v-for="file in projectInfo?.files"
+                    :key="file.filename"
+                    class="file-item"
+                    @click="selectFile(file.filename)"
+                  >
+                    <span>{{ file.filename }}</span>
+                    <span class="badge"
+                      >{{ file.function_count }} functions</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- File View (file selected, no function) -->
+            <div
+              v-if="selectedFile && !selectedFunction && !showCallGraph"
+              class="card"
+            >
+              <div class="breadcrumb">
+                <span class="breadcrumb-item" @click="clearFile"
+                  >{{ selectedProject.name }}</span
+                >
+                <span class="breadcrumb-separator">›</span>
+                <span class="breadcrumb-current">{{ selectedFile }}</span>
+              </div>
+              <h2>{{ selectedFile }}</h2>
+              <div v-if="loadingFileFunctions" class="loading">
+                Loading functions...
+              </div>
+              <div v-else-if="fileFunctions.length > 0" class="function-list">
+                <div
+                  v-for="fn in fileFunctions"
+                  :key="fn.symbol + fn.start_line"
+                  class="function-item"
+                  @click="selectFunction(fn)"
+                >
+                  <div class="function-name">
+                    {{ fn.symbol }}{{ fn.parameters || '' }}
+                  </div>
+                  <div class="function-location">Line {{ fn.start_line }}</div>
+                </div>
+              </div>
+              <div v-else class="empty-state">No functions in this file</div>
+            </div>
+
+            <!-- All Functions View -->
+            <div
+              v-if="showingAllFunctions && !selectedFunction && !showCallGraph"
+              class="card"
+            >
+              <div class="breadcrumb">
+                <span class="breadcrumb-item" @click="clearAllFunctions"
+                  >{{ selectedProject.name }}</span
+                >
+                <span class="breadcrumb-separator">›</span>
+                <span class="breadcrumb-current">All Functions</span>
+              </div>
+              <h2>All Functions ({{ allFunctions.length }})</h2>
+              <div v-if="loadingAllFunctions" class="loading">
+                Loading functions...
+              </div>
+              <div
+                v-else-if="allFunctions.length > 0"
+                class="function-list"
+                style="max-height: 600px"
+              >
+                <div
+                  v-for="fn in allFunctions"
+                  :key="fn.symbol + fn.start_line"
+                  class="function-item"
+                  @click="selectFunction(fn)"
+                >
+                  <div class="function-name">
+                    {{ fn.symbol }}{{ fn.parameters || '' }}
+                  </div>
+                  <div class="function-location">
+                    {{ fn.filename }}:{{ fn.start_line }}
+                  </div>
+                </div>
+              </div>
+              <div v-else class="empty-state">No functions found</div>
+            </div>
+
+            <!-- Function Detail View -->
+            <div v-if="selectedFunction && !showCallGraph" class="card">
+              <div class="breadcrumb">
+                <span class="breadcrumb-item" @click="clearFunction"
+                  >{{ selectedProject?.name || 'Projects' }}</span
+                >
+                <span v-if="selectedFile" class="breadcrumb-separator">›</span>
+                <span
+                  v-if="selectedFile"
+                  class="breadcrumb-item"
+                  @click="backToFile"
+                  >{{ selectedFile }}</span
+                >
+                <span class="breadcrumb-separator">›</span>
+                <span class="breadcrumb-current"
+                  >{{ selectedFunction.symbol }}</span
+                >
+              </div>
+              <h2>
+                {{ selectedFunction.symbol }}{{ selectedFunction.parameters ||
+                '' }}
+                <span
+                  v-if="selectedFunction.complexity"
+                  class="complexity-badge"
+                  :class="'complexity-' + selectedFunction.complexity.rating"
+                >
+                  {{ selectedFunction.complexity.label }}
+                </span>
+              </h2>
+
+              <!-- Function Complexity Metrics -->
+              <div v-if="selectedFunction.complexity" class="complexity-card">
+                <h3>Complexity Metrics</h3>
+                <div class="complexity-grid">
+                  <div class="complexity-metric">
+                    <div class="value">
+                      {{ selectedFunction.complexity.cyclomatic }}
+                    </div>
+                    <div class="label">Cyclomatic</div>
+                  </div>
+                  <div class="complexity-metric">
+                    <div class="value">
+                      {{ selectedFunction.complexity.loc }}
+                    </div>
+                    <div class="label">Lines of Code</div>
+                  </div>
+                  <div class="complexity-metric">
+                    <div class="value">
+                      {{ selectedFunction.complexity.nesting_depth }}
+                    </div>
+                    <div class="label">Nesting Depth</div>
+                  </div>
+                  <div class="complexity-metric">
+                    <div class="value">
+                      {{ selectedFunction.complexity.parameter_count }}
+                    </div>
+                    <div class="label">Parameters</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="action-bar">
+                <button
+                  class="btn-primary"
+                  @click="openCallGraph(selectedFunction.symbol)"
+                >
+                  View Call Graph
+                </button>
+              </div>
+
+              <div class="detail-section">
+                <h3>Location</h3>
+                <div>
+                  {{ selectedFunction.filename }}:{{ selectedFunction.start_line
+                  }}-{{ selectedFunction.end_line }}
+                </div>
+              </div>
+
+              <div v-if="selectedFunction.return_type" class="detail-section">
+                <h3>Return Type</h3>
+                <div class="code-block">{{ selectedFunction.return_type }}</div>
+              </div>
+
+              <div v-if="selectedFunction.comment" class="detail-section">
+                <h3>Comment</h3>
+                <div class="comment-block">{{ selectedFunction.comment }}</div>
+              </div>
+
+              <div class="tabs">
+                <div
+                  class="tab"
+                  :class="{ active: activeTab === 'source' }"
+                  @click="activeTab = 'source'"
+                >
+                  Source
+                </div>
+                <div
+                  class="tab"
+                  :class="{ active: activeTab === 'callers' }"
+                  @click="activeTab = 'callers'; loadCallers()"
+                >
+                  Callers ({{ callers.length || '...' }})
+                </div>
+                <div
+                  class="tab"
+                  :class="{ active: activeTab === 'callees' }"
+                  @click="activeTab = 'callees'; loadCallees()"
+                >
+                  Callees ({{ callees.length || '...' }})
+                </div>
+              </div>
+
+              <div v-if="activeTab === 'source'">
+                <div v-if="selectedFunction.source" class="code-block">
+                  {{ selectedFunction.source }}
+                </div>
+                <div v-else class="empty-state">No source available</div>
+              </div>
+
+              <div v-if="activeTab === 'callers'">
+                <div v-if="loadingCallers" class="loading">Loading...</div>
+                <div v-else-if="callers.length > 0">
+                  <div
+                    v-for="caller in callers"
+                    :key="caller.caller_id"
+                    class="caller-callee-item"
+                    @click="navigateToFunction(caller.caller_symbol, caller.caller_filename)"
+                  >
+                    {{ caller.caller_symbol }} ({{ caller.caller_filename }}:{{
+                    caller.caller_start_line }})
+                  </div>
+                </div>
+                <div v-else class="empty-state">No callers found</div>
+              </div>
+
+              <div v-if="activeTab === 'callees'">
+                <div v-if="loadingCallees" class="loading">Loading...</div>
+                <div v-else-if="callees.length > 0">
+                  <div
+                    v-for="callee in callees"
+                    :key="callee.callee_id"
+                    class="caller-callee-item"
+                    @click="navigateToFunction(callee.callee_symbol, callee.callee_filename)"
+                  >
+                    {{ callee.callee_symbol }}{{ callee.callee_parameters || ''
+                    }} ({{ callee.callee_filename }}:{{ callee.callee_start_line
+                    }})
+                  </div>
+                </div>
+                <div v-else class="empty-state">No callees found</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Job Queue Panel (floating, hidden when jobs view is open) -->
+      <div
+        v-if="(jobs.length > 0 || jobQueueStats.running > 0) && !showJobsView"
+        class="job-queue-panel"
+        :class="{ 'job-queue-minimized': jobQueueMinimized }"
+      >
+        <div class="job-queue-header" @click="jobQueueMinimized = !jobQueueMinimized">
+          <h3>
+            Job Queue
+            <span v-if="jobQueueStats.running > 0" class="job-queue-badge running">
+              {{ jobQueueStats.running }} running
+            </span>
+            <span v-else-if="jobQueueStats.queued > 0" class="job-queue-badge">
+              {{ jobQueueStats.queued }} queued
+            </span>
+          </h3>
+          <button class="job-queue-toggle">
+            {{ jobQueueMinimized ? '+' : '−' }}
+          </button>
+        </div>
+        <div class="job-queue-body">
+          <div v-if="jobs.length === 0" class="job-queue-empty">
+            No jobs in queue
+          </div>
+          <div v-for="job in jobs" :key="job.id" class="job-item">
+            <div class="job-item-header">
+              <span class="job-item-type">{{ job.type }}</span>
+              <span class="job-item-status" :class="job.status">{{ job.status }}</span>
+            </div>
+            <div class="job-item-meta">
+              {{ job.metadata?.name || job.metadata?.path || job.id }}
+            </div>
+            <div class="job-progress-bar">
+              <div
+                class="job-progress-fill"
+                :class="job.status"
+                :style="{ width: job.progress + '%' }"
+              ></div>
+            </div>
+            <div v-if="job.error" class="job-item-error">
+              {{ job.error }}
+            </div>
+          </div>
+        </div>
+        <div class="job-queue-stats">
+          <span>Completed: {{ jobQueueStats.completed }}</span>
+          <span>Failed: {{ jobQueueStats.failed }}</span>
+          <span>Total: {{ jobQueueStats.total }}</span>
+        </div>
+      </div>
+
+      <!-- Import Project Modal -->
+      <div
+        v-if="showImportModal"
+        class="modal-overlay"
+        @click.self="closeImportModal"
+      >
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Import Project</h3>
+            <button class="modal-close" @click="closeImportModal">
+              &times;
+            </button>
+          </div>
+          <div class="modal-body">
+            <div v-if="importError" class="error-message">
+              {{ importError }}
+            </div>
+            <div v-if="importSuccess" class="success-message">
+              {{ importSuccess }}
+            </div>
+
+            <div class="form-group">
+              <label for="importPath">Path or Git URL *</label>
+              <input
+                id="importPath"
+                v-model="importPath"
+                type="text"
+                placeholder="e.g., /path/to/project or https://github.com/user/repo"
+                :disabled="importing"
+              />
+              <div class="hint">
+                Enter a local file path or a public Git repository URL
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="importName">Project Name (optional)</label>
+              <input
+                id="importName"
+                v-model="importName"
+                type="text"
+                placeholder="Leave blank to auto-detect from path"
+                :disabled="importing"
+              />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              class="btn-secondary"
+              @click="closeImportModal"
+              :disabled="importing"
+            >
+              Cancel
+            </button>
+            <button
+              class="btn-primary"
+              @click="importProject"
+              :disabled="!importPath || importing"
+            >
+              {{ importing ? 'Importing...' : 'Import Project' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+  </body>
+</html>

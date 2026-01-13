@@ -16,7 +16,7 @@ await test('a tree is generated from a file', async (t) => {
 await test('a tree can have its default types extracted', async (t) => {
   const source = await import_file('./tests/fixtures/test.c');
 
-  const nodes = get_nodes_from_source(source);
+  const nodes = get_nodes_from_source(source, 'test.c');
 
   t.assert.eq(
     nodes.call_expression.length,
