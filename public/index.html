@@ -101,7 +101,7 @@
           <div class="main">
             <!-- Search Card -->
             <div class="card">
-              <h2>Search Functions</h2>
+              <h2>Search</h2>
               <div class="search-box-autocomplete">
                 <div class="autocomplete-wrapper">
                   <input
@@ -113,7 +113,7 @@
                     @keydown.escape="closeAutocomplete"
                     @focus="showAutocomplete = searchSuggestions.length > 0"
                     @blur="onSearchBlur"
-                    placeholder="Enter function name..."
+                    placeholder="Search functions, classes, structs..."
                     autocomplete="off"
                   />
                   <div
@@ -128,7 +128,10 @@
                       @mousedown.prevent="selectSuggestion(fn)"
                       @mouseenter="autocompleteIndex = index"
                     >
-                      <div class="autocomplete-name">{{ fn.symbol }}{{ fn.parameters || '' }}</div>
+                      <div class="autocomplete-name">
+                        <span class="entity-type-badge" :class="fn.type">{{ fn.type }}</span>
+                        {{ fn.symbol }}{{ fn.parameters || '' }}
+                      </div>
                       <div class="autocomplete-location">
                         <span v-if="fn.project_name" class="autocomplete-project">{{ fn.project_name }} /</span>
                         {{ fn.filename }}:{{ fn.start_line }}
@@ -149,6 +152,7 @@
                   @click="selectFunction(fn)"
                 >
                   <div class="function-name">
+                    <span class="entity-type-badge" :class="fn.type">{{ fn.type }}</span>
                     {{ fn.symbol }}{{ fn.parameters || '' }}
                   </div>
                   <div class="function-location">
@@ -158,7 +162,7 @@
                 </div>
               </div>
               <div v-else-if="hasSearched" class="empty-state">
-                No functions found
+                No results found
               </div>
             </div>
 

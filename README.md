@@ -40,7 +40,7 @@ CodeBuddy is a code analysis and knowledge graph tool that parses source code us
 ## Requirements
 
 - Node.js 18 or higher
-- PostgreSQL 14 or higher
+- PostgreSQL 14 or higher with `pg_trgm` extension (for fuzzy search)
 - Git (for cloning repositories)
 
 ## Installation
@@ -117,12 +117,17 @@ cp config.json.example config.json
 }
 ```
 
-5. Run database migrations:
+5. Enable the pg_trgm extension (required for fuzzy search):
+```bash
+psql -U postgres -d codebuddy -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+```
+
+6. Run database migrations:
 ```bash
 yarn migrate
 ```
 
-6. Link the CLI tool (optional):
+7. Link the CLI tool (optional):
 ```bash
 yarn link
 ```

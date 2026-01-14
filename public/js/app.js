@@ -281,12 +281,13 @@ createApp({
         : '';
 
       try {
+        // Use entity search to include functions, classes, and structs
         const response = await fetch(
-          `/api/v1/functions/search?name=${encodeURIComponent(searchQuery.value)}${projectParam}&limit=50`
+          `/api/v1/entities/search?name=${encodeURIComponent(searchQuery.value)}${projectParam}&limit=50`
         );
         searchResults.value = await response.json();
       } catch (error) {
-        console.error('Failed to search functions:', error);
+        console.error('Failed to search entities:', error);
         searchResults.value = [];
       }
     };
@@ -310,8 +311,9 @@ createApp({
           : '';
 
         try {
+          // Use entity search to include functions, classes, and structs
           const response = await fetch(
-            `/api/v1/functions/search?name=${encodeURIComponent(searchQuery.value)}${projectParam}&limit=10`
+            `/api/v1/entities/search?name=${encodeURIComponent(searchQuery.value)}${projectParam}&limit=10`
           );
           searchSuggestions.value = await response.json();
           showAutocomplete.value = searchSuggestions.value.length > 0;

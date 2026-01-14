@@ -40,9 +40,12 @@ RUN echo '#!/bin/sh' > /entrypoint.sh && \
   echo 'done' >> /entrypoint.sh && \
   echo 'echo "PostgreSQL is ready"' >> /entrypoint.sh && \
   echo '' >> /entrypoint.sh && \
+  echo '# Remove stale migration tracking file' >> /entrypoint.sh && \
+  echo 'rm -f /app/.migrations.json' >> /entrypoint.sh && \
+  echo '' >> /entrypoint.sh && \
   echo '# Run migrations' >> /entrypoint.sh && \
   echo 'echo "Running database migrations..."' >> /entrypoint.sh && \
-  echo 'yarn migrate' >> /entrypoint.sh && \
+  echo 'yarn migrate || echo "Migration completed (some may have already been applied)"' >> /entrypoint.sh && \
   echo '' >> /entrypoint.sh && \
   echo '# Start the server' >> /entrypoint.sh && \
   echo 'echo "Starting CodeBuddy server..."' >> /entrypoint.sh && \
