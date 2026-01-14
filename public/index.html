@@ -93,12 +93,40 @@
             <!-- Search Card -->
             <div class="card">
               <h2>Search Functions</h2>
-              <div class="search-box">
-                <input
-                  v-model="searchQuery"
-                  @keyup.enter="searchFunctions"
-                  placeholder="Enter function name..."
-                />
+              <div class="search-box-autocomplete">
+                <div class="autocomplete-wrapper">
+                  <input
+                    v-model="searchQuery"
+                    @input="onSearchInput"
+                    @keydown.down.prevent="navigateAutocomplete(1)"
+                    @keydown.up.prevent="navigateAutocomplete(-1)"
+                    @keydown.enter.prevent="selectAutocompleteItem"
+                    @keydown.escape="closeAutocomplete"
+                    @focus="showAutocomplete = searchSuggestions.length > 0"
+                    @blur="onSearchBlur"
+                    placeholder="Enter function name..."
+                    autocomplete="off"
+                  />
+                  <div
+                    v-if="showAutocomplete && searchSuggestions.length > 0"
+                    class="autocomplete-dropdown"
+                  >
+                    <div
+                      v-for="(fn, index) in searchSuggestions"
+                      :key="fn.id"
+                      class="autocomplete-item"
+                      :class="{ highlighted: autocompleteIndex === index }"
+                      @mousedown.prevent="selectSuggestion(fn)"
+                      @mouseenter="autocompleteIndex = index"
+                    >
+                      <div class="autocomplete-name">{{ fn.symbol }}{{ fn.parameters || '' }}</div>
+                      <div class="autocomplete-location">
+                        <span v-if="fn.project_name" class="autocomplete-project">{{ fn.project_name }} /</span>
+                        {{ fn.filename }}:{{ fn.start_line }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <button @click="searchFunctions" :disabled="!searchQuery">
                   Search
                 </button>
@@ -115,6 +143,7 @@
                     {{ fn.symbol }}{{ fn.parameters || '' }}
                   </div>
                   <div class="function-location">
+                    <span v-if="fn.project_name" class="result-project">{{ fn.project_name }} /</span>
                     {{ fn.filename }}:{{ fn.start_line }}
                   </div>
                 </div>
@@ -510,7 +539,7 @@
               <div v-else-if="fileFunctions.length > 0" class="function-list">
                 <div
                   v-for="fn in fileFunctions"
-                  :key="fn.symbol + fn.start_line"
+                  :key="fn.id"
                   class="function-item"
                   @click="selectFunction(fn)"
                 >
@@ -546,7 +575,7 @@
               >
                 <div
                   v-for="fn in allFunctions"
-                  :key="fn.symbol + fn.start_line"
+                  :key="fn.id"
                   class="function-item"
                   @click="selectFunction(fn)"
                 >
@@ -622,15 +651,6 @@
                 </div>
               </div>
 
-              <div class="action-bar">
-                <button
-                  class="btn-primary"
-                  @click="openCallGraph(selectedFunction.symbol)"
-                >
-                  View Call Graph
-                </button>
-              </div>
-
               <div class="detail-section">
                 <h3>Location</h3>
                 <div>
@@ -659,6 +679,20 @@
                 </div>
                 <div
                   class="tab"
+                  :class="{ active: activeTab === 'callgraph' }"
+                  @click="activeTab = 'callgraph'; loadInlineCallGraph()"
+                >
+                  Call Graph
+                </div>
+                <div
+                  class="tab"
+                  :class="{ active: activeTab === 'flowchart' }"
+                  @click="activeTab = 'flowchart'; loadFlowchart()"
+                >
+                  Flowchart
+                </div>
+                <div
+                  class="tab"
                   :class="{ active: activeTab === 'callers' }"
                   @click="activeTab = 'callers'; loadCallers()"
                 >
@@ -678,6 +712,115 @@
                   {{ selectedFunction.source }}
                 </div>
                 <div v-else class="empty-state">No source available</div>
+              </div>
+
+              <div v-if="activeTab === 'callgraph'">
+                <div v-if="loadingInlineCallGraph" class="loading">Loading call graph...</div>
+                <div v-else-if="inlineCallGraphError" class="empty-state">{{ inlineCallGraphError }}</div>
+                <div v-else-if="inlineCallGraphData" class="graph-container" ref="inlineGraphContainer">
+                  <div class="graph-controls">
+                    <button @click="inlineGraphZoomIn">Zoom In</button>
+                    <button @click="inlineGraphZoomOut">Zoom Out</button>
+                    <button @click="inlineGraphResetZoom">Reset</button>
+                  </div>
+                  <svg class="graph-svg" ref="inlineGraphSvg"></svg>
+                  <div v-if="selectedInlineGraphNode" class="node-info-panel">
+                    <div class="node-info-header">
+                      {{ selectedInlineGraphNode.symbol }}{{ selectedInlineGraphNode.parameters || '' }}
+                    </div>
+                    <div class="node-info-body">
+                      <div class="node-info-row">
+                        <div class="node-info-label">Location</div>
+                        <div class="node-info-value">
+                          {{ selectedInlineGraphNode.filename }}:{{ selectedInlineGraphNode.start_line }}
+                        </div>
+                      </div>
+                      <div v-if="selectedInlineGraphNode.return_type" class="node-info-row">
+                        <div class="node-info-label">Return Type</div>
+                        <div class="node-info-value">{{ selectedInlineGraphNode.return_type }}</div>
+                      </div>
+                      <div style="margin-top: 12px">
+                        <button
+                          class="btn-primary"
+                          @click="selectFunction(selectedInlineGraphNode)"
+                        >
+                          View Details
+                        </button>
+                        <button
+                          class="btn-secondary"
+                          @click="recenterInlineGraph(selectedInlineGraphNode.symbol)"
+                        >
+                          Recenter Graph
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="graph-legend">
+                    <div class="legend-item">
+                      <div class="legend-circle" style="background: #fce4ec; border-color: #e91e63"></div>
+                      <span>Root function</span>
+                    </div>
+                    <div class="legend-item">
+                      <div class="legend-circle" style="background: #e3f2fd; border-color: #2196f3"></div>
+                      <span>Related functions</span>
+                    </div>
+                    <div class="legend-item">
+                      <span style="color: #999">→ Arrow shows call direction</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="empty-state">No call graph data available</div>
+              </div>
+
+              <div v-if="activeTab === 'flowchart'">
+                <div v-if="loadingFlowchart" class="loading">Loading flowchart...</div>
+                <div v-else-if="flowchartError" class="empty-state">{{ flowchartError }}</div>
+                <div v-else-if="flowchartData" class="flowchart-container" ref="flowchartContainer">
+                  <div class="graph-controls">
+                    <button @click="flowchartZoomIn">Zoom In</button>
+                    <button @click="flowchartZoomOut">Zoom Out</button>
+                    <button @click="flowchartResetZoom">Reset</button>
+                  </div>
+                  <svg class="flowchart-svg" ref="flowchartSvg"></svg>
+                  <div v-if="selectedFlowchartNode" class="flowchart-info-panel">
+                    <div class="flowchart-info-header">
+                      <span class="flowchart-info-type">{{ selectedFlowchartNode.type }}</span>
+                      <span v-if="selectedFlowchartNode.line" class="flowchart-info-line">Line {{ selectedFlowchartNode.line }}</span>
+                      <button class="flowchart-info-close" @click="selectedFlowchartNode = null">&times;</button>
+                    </div>
+                    <div class="flowchart-info-body">
+                      <div v-if="selectedFlowchartNode.full_label" class="flowchart-info-label">
+                        {{ selectedFlowchartNode.full_label }}
+                      </div>
+                      <div v-if="selectedFlowchartNode.source_snippet" class="flowchart-info-source">
+                        <pre>{{ selectedFlowchartNode.source_snippet }}</pre>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flowchart-legend">
+                    <div class="legend-item">
+                      <div class="legend-shape legend-oval"></div>
+                      <span>Start/End</span>
+                    </div>
+                    <div class="legend-item">
+                      <div class="legend-shape legend-rect"></div>
+                      <span>Process</span>
+                    </div>
+                    <div class="legend-item">
+                      <div class="legend-shape legend-diamond"></div>
+                      <span>Decision</span>
+                    </div>
+                    <div class="legend-item">
+                      <div class="legend-shape legend-hexagon"></div>
+                      <span>Loop</span>
+                    </div>
+                    <div class="legend-item">
+                      <div class="legend-shape legend-return"></div>
+                      <span>Return</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="empty-state">No flowchart data available</div>
               </div>
 
               <div v-if="activeTab === 'callers'">

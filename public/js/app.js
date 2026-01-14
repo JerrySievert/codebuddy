@@ -41,6 +41,35 @@ createApp({
     const treeData = ref(null);
     const treeDepth = ref(2);
 
+    // Control flow flowchart state
+    const flowchartData = ref(null);
+    const loadingFlowchart = ref(false);
+    const flowchartError = ref('');
+    const flowchartContainer = ref(null);
+    const flowchartSvg = ref(null);
+    const selectedFlowchartNode = ref(null);
+    let flowchartZoom = null;
+    let flowchartG = null;
+    let flowchartSvgElement = null;
+
+    // Inline call graph state (for function detail tab)
+    const inlineCallGraphData = ref(null);
+    const loadingInlineCallGraph = ref(false);
+    const inlineCallGraphError = ref('');
+    const inlineGraphContainer = ref(null);
+    const inlineGraphSvg = ref(null);
+    const selectedInlineGraphNode = ref(null);
+    let inlineGraphZoom = null;
+    let inlineGraphG = null;
+    let inlineGraphSvgElement = null;
+    let inlineSimulation = null;
+
+    // Autocomplete search state
+    const searchSuggestions = ref([]);
+    const showAutocomplete = ref(false);
+    const autocompleteIndex = ref(-1);
+    let searchDebounceTimer = null;
+
     // Import/Refresh state
     const showImportModal = ref(false);
     const importPath = ref('');
@@ -236,6 +265,7 @@ createApp({
       if (!searchQuery.value) return;
 
       hasSearched.value = true;
+      showAutocomplete.value = false;
       const projectParam = selectedProject.value
         ? `&project=${selectedProject.value.name}`
         : '';
@@ -251,8 +281,95 @@ createApp({
       }
     };
 
+    // Autocomplete search functions
+    const onSearchInput = () => {
+      // Debounce the search
+      if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
+      }
+
+      if (!searchQuery.value || searchQuery.value.length < 2) {
+        searchSuggestions.value = [];
+        showAutocomplete.value = false;
+        return;
+      }
+
+      searchDebounceTimer = setTimeout(async () => {
+        const projectParam = selectedProject.value
+          ? `&project=${selectedProject.value.name}`
+          : '';
+
+        try {
+          const response = await fetch(
+            `/api/v1/functions/search?name=${encodeURIComponent(searchQuery.value)}${projectParam}&limit=10`
+          );
+          searchSuggestions.value = await response.json();
+          showAutocomplete.value = searchSuggestions.value.length > 0;
+          autocompleteIndex.value = -1;
+        } catch (error) {
+          console.error('Failed to fetch suggestions:', error);
+          searchSuggestions.value = [];
+          showAutocomplete.value = false;
+        }
+      }, 200);
+    };
+
+    const navigateAutocomplete = (direction) => {
+      if (!showAutocomplete.value || searchSuggestions.value.length === 0) return;
+
+      autocompleteIndex.value += direction;
+
+      if (autocompleteIndex.value < 0) {
+        autocompleteIndex.value = searchSuggestions.value.length - 1;
+      } else if (autocompleteIndex.value >= searchSuggestions.value.length) {
+        autocompleteIndex.value = 0;
+      }
+    };
+
+    const selectAutocompleteItem = () => {
+      if (autocompleteIndex.value >= 0 && autocompleteIndex.value < searchSuggestions.value.length) {
+        selectSuggestion(searchSuggestions.value[autocompleteIndex.value]);
+      } else {
+        searchFunctions();
+      }
+    };
+
+    const selectSuggestion = (fn) => {
+      showAutocomplete.value = false;
+      searchSuggestions.value = [];
+      autocompleteIndex.value = -1;
+      selectFunction(fn);
+    };
+
+    const closeAutocomplete = () => {
+      showAutocomplete.value = false;
+      autocompleteIndex.value = -1;
+    };
+
+    const onSearchBlur = () => {
+      // Delay closing to allow click on dropdown items
+      setTimeout(() => {
+        showAutocomplete.value = false;
+      }, 200);
+    };
+
     const selectFunction = async (fn, skipUrlUpdate = false) => {
       showCallGraph.value = false;
+
+      // If no project selected and function has project info, select the project first
+      if (!selectedProject.value && fn.project_id) {
+        const matchingProject = projects.value.find(p => p.project_id === fn.project_id);
+        if (matchingProject) {
+          selectedProject.value = matchingProject;
+          try {
+            const projResponse = await fetch(`/api/v1/projects/${matchingProject.name}`);
+            projectInfo.value = await projResponse.json();
+          } catch (error) {
+            console.error('Failed to load project info:', error);
+          }
+        }
+      }
+
       const projectParam = selectedProject.value
         ? `?project=${selectedProject.value.name}`
         : '';
@@ -276,6 +393,11 @@ createApp({
       activeTab.value = 'source';
       callers.value = [];
       callees.value = [];
+      flowchartData.value = null;
+      flowchartError.value = '';
+      inlineCallGraphData.value = null;
+      inlineCallGraphError.value = '';
+      selectedInlineGraphNode.value = null;
       if (!skipUrlUpdate) updateUrl();
     };
 
@@ -453,6 +575,657 @@ createApp({
     const recenterTreeOnNode = async (symbol) => {
       callGraphRoot.value = symbol;
       await loadTreeView(symbol, graphViewType.value);
+    };
+
+    // Load control flow flowchart
+    const loadFlowchart = async () => {
+      if (!selectedFunction.value) return;
+
+      // If data already loaded, just re-render the flowchart
+      if (flowchartData.value) {
+        await nextTick();
+        setTimeout(() => {
+          renderFlowchart();
+        }, 50);
+        return;
+      }
+
+      loadingFlowchart.value = true;
+      flowchartError.value = '';
+      selectedFlowchartNode.value = null;
+
+      try {
+        const response = await fetch(
+          `/api/v1/functions/${encodeURIComponent(selectedFunction.value.symbol)}/controlflow?project=${selectedProject.value.name}&filename=${encodeURIComponent(selectedFunction.value.filename)}`
+        );
+
+        if (!response.ok) {
+          const error = await response.json();
+          flowchartError.value = error.error || 'Failed to load flowchart';
+          return;
+        }
+
+        flowchartData.value = await response.json();
+      } catch (error) {
+        console.error('Failed to load flowchart:', error);
+        flowchartError.value = 'Failed to load flowchart';
+      } finally {
+        loadingFlowchart.value = false;
+        await nextTick();
+        setTimeout(() => {
+          renderFlowchart();
+        }, 50);
+      }
+    };
+
+    // Render control flow flowchart with proper shapes
+    const renderFlowchart = () => {
+      if (!flowchartData.value || !flowchartSvg.value) {
+        console.log('Missing flowchart data or SVG ref');
+        return;
+      }
+
+      const container = flowchartContainer.value;
+      const width = container.clientWidth || 800;
+      const height = container.clientHeight || 600;
+
+      // Clear previous flowchart
+      d3.select(flowchartSvg.value).selectAll('*').remove();
+
+      flowchartSvgElement = d3.select(flowchartSvg.value);
+
+      // Add zoom behavior
+      flowchartZoom = d3
+        .zoom()
+        .scaleExtent([0.1, 4])
+        .on('zoom', (event) => {
+          flowchartG.attr('transform', event.transform);
+        });
+
+      flowchartSvgElement.call(flowchartZoom);
+
+      // Click on background to deselect node
+      flowchartSvgElement.on('click', () => {
+        selectedFlowchartNode.value = null;
+      });
+
+      flowchartG = flowchartSvgElement.append('g');
+
+      // Define arrow marker
+      flowchartSvgElement
+        .append('defs')
+        .append('marker')
+        .attr('id', 'flowchart-arrow')
+        .attr('viewBox', '-0 -5 10 10')
+        .attr('refX', 8)
+        .attr('refY', 0)
+        .attr('orient', 'auto')
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .append('path')
+        .attr('d', 'M 0,-5 L 10,0 L 0,5')
+        .attr('fill', '#666');
+
+      const nodes = flowchartData.value.nodes;
+      const edges = flowchartData.value.edges;
+
+      if (!nodes || nodes.length === 0) {
+        flowchartError.value = 'No control flow data available';
+        return;
+      }
+
+      // Layout nodes using dagre-like algorithm (simple vertical layout)
+      const nodeWidth = 140;
+      const nodeHeight = 50;
+      const levelGap = 80;
+      const nodeGap = 30;
+
+      // Build adjacency list and compute levels
+      const adjList = new Map();
+      const inDegree = new Map();
+
+      nodes.forEach(n => {
+        adjList.set(n.id, []);
+        inDegree.set(n.id, 0);
+      });
+
+      edges.forEach(e => {
+        if (adjList.has(e.from)) {
+          adjList.get(e.from).push(e.to);
+        }
+        if (inDegree.has(e.to)) {
+          inDegree.set(e.to, inDegree.get(e.to) + 1);
+        }
+      });
+
+      // Topological sort to assign levels
+      const levels = new Map();
+      const queue = [];
+
+      nodes.forEach(n => {
+        if (inDegree.get(n.id) === 0) {
+          queue.push(n.id);
+          levels.set(n.id, 0);
+        }
+      });
+
+      while (queue.length > 0) {
+        const current = queue.shift();
+        const currentLevel = levels.get(current);
+
+        for (const neighbor of adjList.get(current) || []) {
+          if (!levels.has(neighbor)) {
+            levels.set(neighbor, currentLevel + 1);
+          } else {
+            levels.set(neighbor, Math.max(levels.get(neighbor), currentLevel + 1));
+          }
+          inDegree.set(neighbor, inDegree.get(neighbor) - 1);
+          if (inDegree.get(neighbor) === 0) {
+            queue.push(neighbor);
+          }
+        }
+      }
+
+      // Handle nodes not reached (cycles)
+      nodes.forEach(n => {
+        if (!levels.has(n.id)) {
+          levels.set(n.id, 0);
+        }
+      });
+
+      // Group nodes by level
+      const levelGroups = new Map();
+      nodes.forEach(n => {
+        const level = levels.get(n.id);
+        if (!levelGroups.has(level)) {
+          levelGroups.set(level, []);
+        }
+        levelGroups.get(level).push(n);
+      });
+
+      // Position nodes
+      const nodePositions = new Map();
+      const maxLevel = Math.max(...levels.values());
+
+      levelGroups.forEach((levelNodes, level) => {
+        const totalWidth = levelNodes.length * nodeWidth + (levelNodes.length - 1) * nodeGap;
+        const startX = (width - totalWidth) / 2;
+
+        levelNodes.forEach((node, i) => {
+          nodePositions.set(node.id, {
+            x: startX + i * (nodeWidth + nodeGap) + nodeWidth / 2,
+            y: 60 + level * (nodeHeight + levelGap)
+          });
+        });
+      });
+
+      // Draw edges
+      const linkGroup = flowchartG.append('g').attr('class', 'flowchart-links');
+
+      edges.forEach(edge => {
+        const fromPos = nodePositions.get(edge.from);
+        const toPos = nodePositions.get(edge.to);
+
+        if (!fromPos || !toPos) return;
+
+        // Calculate path based on relative positions
+        const fromNode = nodes.find(n => n.id === edge.from);
+        const toNode = nodes.find(n => n.id === edge.to);
+
+        let startY = fromPos.y + nodeHeight / 2;
+        let endY = toPos.y - nodeHeight / 2;
+
+        // Adjust for diamond shapes (decision nodes)
+        if (fromNode && fromNode.type === 'decision') {
+          startY = fromPos.y + nodeHeight / 2 + 5;
+        }
+
+        // Create path
+        const path = linkGroup
+          .append('path')
+          .attr('class', 'flowchart-edge')
+          .attr('marker-end', 'url(#flowchart-arrow)')
+          .attr('fill', 'none')
+          .attr('stroke', '#666')
+          .attr('stroke-width', 1.5);
+
+        // Different path for back edges (loops)
+        if (toPos.y <= fromPos.y) {
+          // Back edge - curve around
+          const midX = Math.max(fromPos.x, toPos.x) + nodeWidth;
+          path.attr('d', `
+            M ${fromPos.x + nodeWidth / 2} ${fromPos.y}
+            Q ${midX} ${fromPos.y}, ${midX} ${(fromPos.y + toPos.y) / 2}
+            Q ${midX} ${toPos.y}, ${toPos.x + nodeWidth / 2} ${toPos.y}
+          `);
+        } else {
+          // Forward edge - straight or slight curve
+          const dx = toPos.x - fromPos.x;
+          if (Math.abs(dx) < 10) {
+            // Straight vertical line
+            path.attr('d', `M ${fromPos.x} ${startY} L ${toPos.x} ${endY}`);
+          } else {
+            // Curved path
+            const midY = (startY + endY) / 2;
+            path.attr('d', `
+              M ${fromPos.x} ${startY}
+              Q ${fromPos.x} ${midY}, ${(fromPos.x + toPos.x) / 2} ${midY}
+              Q ${toPos.x} ${midY}, ${toPos.x} ${endY}
+            `);
+          }
+        }
+
+        // Add edge label
+        if (edge.label) {
+          const labelX = (fromPos.x + toPos.x) / 2;
+          const labelY = (fromPos.y + toPos.y) / 2;
+
+          linkGroup
+            .append('text')
+            .attr('class', 'flowchart-edge-label')
+            .attr('x', labelX + 10)
+            .attr('y', labelY)
+            .attr('text-anchor', 'start')
+            .attr('fill', '#666')
+            .attr('font-size', '11px')
+            .text(edge.label);
+        }
+      });
+
+      // Draw nodes
+      const nodeGroup = flowchartG.append('g').attr('class', 'flowchart-nodes');
+
+      nodes.forEach(node => {
+        const pos = nodePositions.get(node.id);
+        if (!pos) return;
+
+        const g = nodeGroup
+          .append('g')
+          .attr('class', `flowchart-node flowchart-node-${node.type}`)
+          .attr('transform', `translate(${pos.x}, ${pos.y})`)
+          .style('cursor', node.source_snippet ? 'pointer' : 'default')
+          .on('click', (event) => {
+            event.stopPropagation();
+            if (node.source_snippet || node.full_label) {
+              selectedFlowchartNode.value = node;
+            }
+          });
+
+        // Draw shape based on type
+        switch (node.type) {
+          case 'start':
+          case 'end':
+            // Oval/rounded rectangle for start/end
+            g.append('rect')
+              .attr('x', -nodeWidth / 2)
+              .attr('y', -nodeHeight / 2)
+              .attr('width', nodeWidth)
+              .attr('height', nodeHeight)
+              .attr('rx', nodeHeight / 2)
+              .attr('ry', nodeHeight / 2)
+              .attr('class', 'flowchart-shape-oval');
+            break;
+
+          case 'decision':
+            // Diamond for decisions
+            const diamondSize = nodeHeight * 0.8;
+            g.append('polygon')
+              .attr('points', `
+                0,${-diamondSize}
+                ${diamondSize},0
+                0,${diamondSize}
+                ${-diamondSize},0
+              `)
+              .attr('class', 'flowchart-shape-diamond');
+            break;
+
+          case 'loop':
+            // Hexagon for loops
+            const hw = nodeWidth / 2;
+            const hh = nodeHeight / 2;
+            const indent = 15;
+            g.append('polygon')
+              .attr('points', `
+                ${-hw + indent},${-hh}
+                ${hw - indent},${-hh}
+                ${hw},0
+                ${hw - indent},${hh}
+                ${-hw + indent},${hh}
+                ${-hw},0
+              `)
+              .attr('class', 'flowchart-shape-hexagon');
+            break;
+
+          case 'return':
+            // Rounded rectangle with different color for return
+            g.append('rect')
+              .attr('x', -nodeWidth / 2)
+              .attr('y', -nodeHeight / 2)
+              .attr('width', nodeWidth)
+              .attr('height', nodeHeight)
+              .attr('rx', 8)
+              .attr('ry', 8)
+              .attr('class', 'flowchart-shape-return');
+            break;
+
+          case 'process':
+          default:
+            // Rectangle for process
+            g.append('rect')
+              .attr('x', -nodeWidth / 2)
+              .attr('y', -nodeHeight / 2)
+              .attr('width', nodeWidth)
+              .attr('height', nodeHeight)
+              .attr('class', 'flowchart-shape-rect');
+            break;
+        }
+
+        // Add label
+        const label = node.label || node.type;
+        const maxLabelLength = 18;
+        const displayLabel = label.length > maxLabelLength
+          ? label.substring(0, maxLabelLength - 2) + '...'
+          : label;
+
+        g.append('text')
+          .attr('class', 'flowchart-label')
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'middle')
+          .attr('y', node.type === 'decision' ? 0 : 0)
+          .text(displayLabel)
+          .append('title')
+          .text(node.full_label || label);
+
+        // Add line number if available
+        if (node.line) {
+          g.append('text')
+            .attr('class', 'flowchart-line-number')
+            .attr('text-anchor', 'middle')
+            .attr('y', nodeHeight / 2 + 12)
+            .attr('font-size', '10px')
+            .attr('fill', '#999')
+            .text(`Line ${node.line}`);
+        }
+      });
+
+      // Auto-fit the flowchart to the viewport
+      const bounds = flowchartG.node().getBBox();
+      const fullWidth = bounds.width + 100;
+      const fullHeight = bounds.height + 100;
+      const scale = Math.min(width / fullWidth, height / fullHeight, 1);
+
+      flowchartSvgElement.call(
+        flowchartZoom.transform,
+        d3.zoomIdentity
+          .translate(
+            width / 2 - bounds.x * scale - bounds.width * scale / 2,
+            50
+          )
+          .scale(scale)
+      );
+    };
+
+    // Flowchart zoom controls
+    const flowchartZoomIn = () => {
+      if (flowchartSvgElement && flowchartZoom) {
+        flowchartSvgElement.transition().call(flowchartZoom.scaleBy, 1.3);
+      }
+    };
+
+    const flowchartZoomOut = () => {
+      if (flowchartSvgElement && flowchartZoom) {
+        flowchartSvgElement.transition().call(flowchartZoom.scaleBy, 0.7);
+      }
+    };
+
+    const flowchartResetZoom = () => {
+      if (flowchartSvgElement && flowchartZoom) {
+        flowchartSvgElement.transition().call(flowchartZoom.transform, d3.zoomIdentity);
+      }
+    };
+
+    // Load inline call graph for function detail tab
+    const loadInlineCallGraph = async () => {
+      if (!selectedFunction.value) return;
+
+      // If data already loaded, just re-render the graph
+      if (inlineCallGraphData.value) {
+        await nextTick();
+        setTimeout(() => {
+          renderInlineCallGraph();
+        }, 50);
+        return;
+      }
+
+      loadingInlineCallGraph.value = true;
+      inlineCallGraphError.value = '';
+      selectedInlineGraphNode.value = null;
+
+      try {
+        const response = await fetch(
+          `/api/v1/functions/${encodeURIComponent(selectedFunction.value.symbol)}/callgraph?project=${selectedProject.value.name}&depth=3`
+        );
+
+        if (!response.ok) {
+          const error = await response.json();
+          inlineCallGraphError.value = error.error || 'Failed to load call graph';
+          return;
+        }
+
+        inlineCallGraphData.value = await response.json();
+      } catch (error) {
+        console.error('Failed to load inline call graph:', error);
+        inlineCallGraphError.value = 'Failed to load call graph';
+      } finally {
+        loadingInlineCallGraph.value = false;
+        await nextTick();
+        setTimeout(() => {
+          renderInlineCallGraph();
+        }, 50);
+      }
+    };
+
+    // Recenter inline call graph on a different function
+    const recenterInlineGraph = async (symbol) => {
+      loadingInlineCallGraph.value = true;
+      inlineCallGraphError.value = '';
+      selectedInlineGraphNode.value = null;
+
+      try {
+        const response = await fetch(
+          `/api/v1/functions/${encodeURIComponent(symbol)}/callgraph?project=${selectedProject.value.name}&depth=3`
+        );
+
+        if (!response.ok) {
+          const error = await response.json();
+          inlineCallGraphError.value = error.error || 'Failed to load call graph';
+          return;
+        }
+
+        inlineCallGraphData.value = await response.json();
+      } catch (error) {
+        console.error('Failed to recenter inline call graph:', error);
+        inlineCallGraphError.value = 'Failed to load call graph';
+      } finally {
+        loadingInlineCallGraph.value = false;
+        await nextTick();
+        setTimeout(() => {
+          renderInlineCallGraph();
+        }, 50);
+      }
+    };
+
+    // Render inline call graph using D3
+    const renderInlineCallGraph = () => {
+      if (!inlineCallGraphData.value || !inlineGraphSvg.value) {
+        console.log('Missing inline call graph data or SVG ref');
+        return;
+      }
+
+      const container = inlineGraphContainer.value;
+      const width = container.clientWidth || 800;
+      const height = container.clientHeight || 600;
+
+      // Clear previous graph
+      d3.select(inlineGraphSvg.value).selectAll('*').remove();
+
+      inlineGraphSvgElement = d3.select(inlineGraphSvg.value);
+
+      // Add zoom behavior
+      inlineGraphZoom = d3
+        .zoom()
+        .scaleExtent([0.1, 4])
+        .on('zoom', (event) => {
+          inlineGraphG.attr('transform', event.transform);
+        });
+
+      inlineGraphSvgElement.call(inlineGraphZoom);
+
+      inlineGraphG = inlineGraphSvgElement.append('g');
+
+      // Define arrow marker
+      inlineGraphSvgElement
+        .append('defs')
+        .append('marker')
+        .attr('id', 'inline-arrowhead')
+        .attr('viewBox', '-0 -5 10 10')
+        .attr('refX', 20)
+        .attr('refY', 0)
+        .attr('orient', 'auto')
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .append('path')
+        .attr('d', 'M 0,-5 L 10,0 L 0,5')
+        .attr('class', 'graph-arrow');
+
+      const nodes = inlineCallGraphData.value.nodes;
+      const edges = inlineCallGraphData.value.edges;
+      const rootId = inlineCallGraphData.value.root;
+
+      // Create links
+      const links = edges
+        .map((e) => ({
+          source: nodes.find((n) => n.id === e.from),
+          target: nodes.find((n) => n.id === e.to),
+          line: e.line
+        }))
+        .filter((l) => l.source && l.target);
+
+      // Create simulation
+      inlineSimulation = d3
+        .forceSimulation(nodes)
+        .force(
+          'link',
+          d3
+            .forceLink(links)
+            .id((d) => d.id)
+            .distance(120)
+        )
+        .force('charge', d3.forceManyBody().strength(-400))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(50));
+
+      // Draw links
+      const link = inlineGraphG
+        .append('g')
+        .selectAll('line')
+        .data(links)
+        .join('line')
+        .attr('class', 'graph-link')
+        .attr('marker-end', 'url(#inline-arrowhead)');
+
+      // Draw nodes
+      const node = inlineGraphG
+        .append('g')
+        .selectAll('g')
+        .data(nodes)
+        .join('g')
+        .attr('class', (d) => `graph-node ${d.id === rootId ? 'root' : ''}`)
+        .call(
+          d3
+            .drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended)
+        )
+        .on('click', (event, d) => {
+          event.stopPropagation();
+          selectedInlineGraphNode.value = d;
+
+          // Update selected state
+          inlineGraphG.selectAll('.graph-node').classed('selected', (n) => n.id === d.id);
+
+          // Highlight connected links
+          link.classed('highlighted', (l) => l.source.id === d.id || l.target.id === d.id);
+        });
+
+      node
+        .append('circle')
+        .attr('r', (d) => (d.id === rootId ? 18 : 14))
+        .attr('fill', (d) => (d.id === rootId ? '#fce4ec' : '#e3f2fd'))
+        .attr('stroke', (d) => (d.id === rootId ? '#e91e63' : '#2196f3'));
+
+      node
+        .append('text')
+        .attr('dy', 30)
+        .attr('text-anchor', 'middle')
+        .text((d) =>
+          d.symbol.length > 20 ? d.symbol.substring(0, 17) + '...' : d.symbol
+        );
+
+      // Update positions on tick
+      inlineSimulation.on('tick', () => {
+        link
+          .attr('x1', (d) => d.source.x)
+          .attr('y1', (d) => d.source.y)
+          .attr('x2', (d) => d.target.x)
+          .attr('y2', (d) => d.target.y);
+
+        node.attr('transform', (d) => `translate(${d.x},${d.y})`);
+      });
+
+      function dragstarted(event, d) {
+        if (!event.active) inlineSimulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+      }
+
+      function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+      }
+
+      function dragended(event, d) {
+        if (!event.active) inlineSimulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+
+      // Click on background to deselect
+      inlineGraphSvgElement.on('click', () => {
+        selectedInlineGraphNode.value = null;
+        inlineGraphG.selectAll('.graph-node').classed('selected', false);
+        link.classed('highlighted', false);
+      });
+    };
+
+    // Inline graph zoom controls
+    const inlineGraphZoomIn = () => {
+      if (inlineGraphSvgElement && inlineGraphZoom) {
+        inlineGraphSvgElement.transition().call(inlineGraphZoom.scaleBy, 1.3);
+      }
+    };
+
+    const inlineGraphZoomOut = () => {
+      if (inlineGraphSvgElement && inlineGraphZoom) {
+        inlineGraphSvgElement.transition().call(inlineGraphZoom.scaleBy, 0.7);
+      }
+    };
+
+    const inlineGraphResetZoom = () => {
+      if (inlineGraphSvgElement && inlineGraphZoom) {
+        inlineGraphSvgElement.transition().call(inlineGraphZoom.transform, d3.zoomIdentity);
+      }
     };
 
     // Render tree using D3 tree layout
@@ -1100,6 +1873,21 @@ createApp({
       graphViewType,
       treeData,
       treeDepth,
+      flowchartData,
+      loadingFlowchart,
+      flowchartError,
+      flowchartContainer,
+      flowchartSvg,
+      selectedFlowchartNode,
+      inlineCallGraphData,
+      loadingInlineCallGraph,
+      inlineCallGraphError,
+      inlineGraphContainer,
+      inlineGraphSvg,
+      selectedInlineGraphNode,
+      searchSuggestions,
+      showAutocomplete,
+      autocompleteIndex,
       selectProject,
       selectFile,
       clearFile,
@@ -1119,6 +1907,21 @@ createApp({
       loadTreeView,
       reloadTreeView,
       recenterTreeOnNode,
+      loadFlowchart,
+      flowchartZoomIn,
+      flowchartZoomOut,
+      flowchartResetZoom,
+      loadInlineCallGraph,
+      recenterInlineGraph,
+      inlineGraphZoomIn,
+      inlineGraphZoomOut,
+      inlineGraphResetZoom,
+      onSearchInput,
+      navigateAutocomplete,
+      selectAutocompleteItem,
+      selectSuggestion,
+      closeAutocomplete,
+      onSearchBlur,
       zoomIn,
       zoomOut,
       resetZoom,
