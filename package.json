@@ -1,5 +1,5 @@
 {
-  "name": "build-knowledge-graph",
+  "name": "codebuddy",
   "version": "1.0.0",
   "main": "index.mjs",
   "license": "MIT",
