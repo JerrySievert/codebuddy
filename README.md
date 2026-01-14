@@ -39,6 +39,45 @@ CodeBuddy is a code analysis and knowledge graph tool that parses source code us
 
 ## Installation
 
+### Using Docker (Recommended)
+
+The easiest way to run CodeBuddy is with Docker Compose:
+
+```bash
+git clone https://github.com/anthropics/codebuddy.git
+cd codebuddy
+docker compose up --build
+```
+
+This starts PostgreSQL and CodeBuddy, runs migrations automatically, and exposes the web interface at http://localhost:3000.
+
+To run in the background:
+```bash
+docker compose up --build -d
+```
+
+To view logs:
+```bash
+docker compose logs -f codebuddy
+```
+
+To stop the containers:
+```bash
+docker compose down
+```
+
+To stop and remove all data (including the database):
+```bash
+docker compose down -v
+```
+
+The Docker setup uses the following default configuration:
+- PostgreSQL 18 with database `codebuddy`
+- Web interface on port 3000
+- Persistent volumes for database data and cloned repositories
+
+### Manual Installation
+
 1. Clone the repository:
 ```bash
 git clone https://github.com/anthropics/codebuddy.git

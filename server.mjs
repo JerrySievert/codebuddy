@@ -11,8 +11,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = Path.dirname(__filename);
 
 const server = Hapi.server({
-  port: 3000,
-  host: 'localhost'
+  port: process.env.PORT || 3000,
+  host: process.env.HOST || 'localhost'
 });
 
 const init = async () => {

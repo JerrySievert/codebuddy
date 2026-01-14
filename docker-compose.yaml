@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: codebuddy
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d codebuddy"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  codebuddy:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: postgres
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: codebuddy
+      HOST: 0.0.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - repos:/app/repos
+
+volumes:
+  postgres_data:
+  repos:

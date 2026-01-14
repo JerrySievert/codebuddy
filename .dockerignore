@@ -1,0 +1,10 @@
+node_modules
+.git
+.gitignore
+*.md
+!README.md
+config.json
+repos/
+IDEAS.md
+.DS_Store
+.migrations.json
