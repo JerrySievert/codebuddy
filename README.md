@@ -50,7 +50,7 @@ CodeBuddy is a code analysis and knowledge graph tool that parses source code us
 The easiest way to run CodeBuddy is with Docker Compose:
 
 ```bash
-git clone https://github.com/anthropics/codebuddy.git
+git clone https://github.com/jerrysievert/codebuddy.git
 cd codebuddy
 docker compose up --build
 ```
