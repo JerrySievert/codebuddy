@@ -10,6 +10,8 @@ import {
 } from './lib/model/entity.mjs';
 import {
   build_call_tree,
+  build_caller_tree,
+  build_callee_tree,
   get_entities_by_caller_id,
   get_entities_by_callee_id
 } from './lib/model/relationship.mjs';
@@ -436,6 +438,92 @@ server.tool(
           {
             type: 'text',
             text: extracted
+          }
+        ]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error ${err}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  tools[`function_caller_tree`].name,
+  tools[`function_caller_tree`].description,
+  {
+    name: z.string().describe('Function name to retrieve caller tree for'),
+    project: z.string().describe('Project name'),
+    depth: z
+      .number()
+      .optional()
+      .default(1)
+      .describe('Depth of the tree (-1 for unlimited, default 1)')
+  },
+  async ({ name, project, depth }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const tree = await build_caller_tree({
+        symbol: name,
+        project_id: projects[0].id,
+        depth
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(tree)
+          }
+        ]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error ${err}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  tools[`function_callee_tree`].name,
+  tools[`function_callee_tree`].description,
+  {
+    name: z.string().describe('Function name to retrieve callee tree for'),
+    project: z.string().describe('Project name'),
+    depth: z
+      .number()
+      .optional()
+      .default(1)
+      .describe('Depth of the tree (-1 for unlimited, default 1)')
+  },
+  async ({ name, project, depth }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const tree = await build_callee_tree({
+        symbol: name,
+        project_id: projects[0].id,
+        depth
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(tree)
           }
         ]
       };

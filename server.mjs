@@ -5,6 +5,7 @@ import Inert from '@hapi/inert';
 import Path from 'path';
 import { fileURLToPath } from 'url';
 import { routes } from './lib/api/v1/index.mjs';
+import { mcpRoutes } from './lib/mcp-http.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = Path.dirname(__filename);
@@ -17,6 +18,9 @@ const server = Hapi.server({
 const init = async () => {
   // Register Inert plugin for static file serving
   await server.register(Inert);
+
+  // Register MCP HTTP transport routes
+  server.route(mcpRoutes);
 
   // Register all API routes
   server.route(routes);
@@ -35,6 +39,7 @@ const init = async () => {
 
   await server.start();
   console.log(`Server running on ${server.info.uri}`);
+  console.log(`MCP HTTP transport available at ${server.info.uri}/mcp`);
 };
 
 init().catch((err) => {
