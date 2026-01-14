@@ -55,9 +55,12 @@ await test('the full file is returned when only source is requested', async (t) 
 await test('all files of a type can be found from a directory', async (t) => {
   const files = await get_all_filenames_with_type('./tests/fixtures', 'c');
 
-  t.assert.eq(
-    files[0],
-    'tests/fixtures/test.c',
-    'The correct filename is found'
+  t.assert.ok(
+    files.includes('tests/fixtures/test.c'),
+    'The test.c file should be found'
+  );
+  t.assert.ok(
+    files.length >= 1,
+    'At least one .c file should be found'
   );
 });

@@ -21,6 +21,8 @@ createApp({
 
     const selectedFunction = ref(null);
     const activeTab = ref('source');
+    const classMembers = ref([]);
+    const loadingClassMembers = ref(false);
 
     const callers = ref([]);
     const callees = ref([]);
@@ -388,8 +390,7 @@ createApp({
         );
         const results = await response.json();
         if (results.length > 0) {
-          selectedFunction.value =
-            results.find((r) => r.id === fn.id) || results[0];
+          selectedFunction.value = results.find((r) => r.id === fn.id) || results[0];
         } else {
           selectedFunction.value = fn;
         }
@@ -401,11 +402,28 @@ createApp({
       activeTab.value = 'source';
       callers.value = [];
       callees.value = [];
+      classMembers.value = [];
       flowchartData.value = null;
       flowchartError.value = '';
       inlineCallGraphData.value = null;
       inlineCallGraphError.value = '';
       selectedInlineGraphNode.value = null;
+
+      // If this is a class or struct, fetch its members
+      if (selectedFunction.value && (selectedFunction.value.type === 'class' || selectedFunction.value.type === 'struct')) {
+        loadingClassMembers.value = true;
+        try {
+          const membersResponse = await fetch(`/api/v1/functions/${selectedFunction.value.id}/members`);
+          const membersData = await membersResponse.json();
+          classMembers.value = membersData.members || [];
+        } catch (error) {
+          console.error('Failed to load class members:', error);
+          classMembers.value = [];
+        } finally {
+          loadingClassMembers.value = false;
+        }
+      }
+
       if (!skipUrlUpdate) updateUrl();
     };
 
@@ -1968,6 +1986,8 @@ createApp({
       loadingAllFunctions,
       selectedFunction,
       activeTab,
+      classMembers,
+      loadingClassMembers,
       callers,
       callees,
       loadingCallers,

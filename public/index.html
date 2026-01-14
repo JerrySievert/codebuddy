@@ -23,11 +23,11 @@
           </div>
           <div class="header-nav">
             <button
+              v-if="selectedProject"
               class="nav-item"
               :class="{ active: showAnalysisView }"
               @click="toggleAnalysisView"
-              :disabled="!selectedProject"
-              :title="!selectedProject ? 'Select a project first' : 'View code analysis'"
+              title="View code analysis"
             >
               Analysis
             </button>
@@ -1009,7 +1009,7 @@
 
               <div class="action-bar">
                 <button class="btn-secondary" @click="showAllFunctions">
-                  Show All Functions
+                  Show All Entities
                 </button>
                 <button class="btn-primary" @click="openCallGraph('main')">
                   View Call Graph (main)
@@ -1018,7 +1018,7 @@
               <div class="detail-section">
                 <h3>
                   Files ({{ projectInfo?.files?.length || 0 }}) - Click to view
-                  functions
+                  entities
                 </h3>
                 <div class="file-list">
                   <div
@@ -1050,7 +1050,7 @@
               </div>
               <h2>{{ selectedFile }}</h2>
               <div v-if="loadingFileFunctions" class="loading">
-                Loading functions...
+                Loading entities...
               </div>
               <div v-else-if="fileFunctions.length > 0" class="function-list">
                 <div
@@ -1060,12 +1060,13 @@
                   @click="selectFunction(fn)"
                 >
                   <div class="function-name">
+                    <span class="entity-type-badge" :class="'type-' + fn.type">{{ fn.type }}</span>
                     {{ fn.symbol }}{{ fn.parameters || '' }}
                   </div>
                   <div class="function-location">Line {{ fn.start_line }}</div>
                 </div>
               </div>
-              <div v-else class="empty-state">No functions in this file</div>
+              <div v-else class="empty-state">No entities in this file</div>
             </div>
 
             <!-- All Functions View -->
@@ -1078,11 +1079,11 @@
                   >{{ selectedProject.name }}</span
                 >
                 <span class="breadcrumb-separator">›</span>
-                <span class="breadcrumb-current">All Functions</span>
+                <span class="breadcrumb-current">All Entities</span>
               </div>
-              <h2>All Functions ({{ allFunctions.length }})</h2>
+              <h2>All Entities ({{ allFunctions.length }})</h2>
               <div v-if="loadingAllFunctions" class="loading">
-                Loading functions...
+                Loading entities...
               </div>
               <div
                 v-else-if="allFunctions.length > 0"
@@ -1096,6 +1097,7 @@
                   @click="selectFunction(fn)"
                 >
                   <div class="function-name">
+                    <span class="entity-type-badge" :class="'type-' + fn.type">{{ fn.type }}</span>
                     {{ fn.symbol }}{{ fn.parameters || '' }}
                   </div>
                   <div class="function-location">
@@ -1103,7 +1105,7 @@
                   </div>
                 </div>
               </div>
-              <div v-else class="empty-state">No functions found</div>
+              <div v-else class="empty-state">No entities found</div>
             </div>
 
             <!-- Function Detail View -->
@@ -1183,6 +1185,30 @@
               <div v-if="selectedFunction.comment" class="detail-section">
                 <h3>Comment</h3>
                 <div class="comment-block">{{ selectedFunction.comment }}</div>
+              </div>
+
+              <!-- Class/Struct Members Section -->
+              <div v-if="selectedFunction.type === 'class' || selectedFunction.type === 'struct'" class="detail-section">
+                <h3>Members ({{ classMembers.length }})</h3>
+                <div v-if="loadingClassMembers" class="loading">Loading members...</div>
+                <div v-else-if="classMembers.length > 0" class="function-list class-members-list">
+                  <div
+                    v-for="member in classMembers"
+                    :key="member.id"
+                    class="function-item member-item"
+                    @click="selectFunction(member)"
+                  >
+                    <div class="function-name">
+                      <span class="entity-type-badge type-function">method</span>
+                      {{ member.symbol }}{{ member.parameters || '' }}
+                    </div>
+                    <div class="function-location">
+                      Line {{ member.start_line }}
+                      <span v-if="member.return_type" class="member-return-type">→ {{ member.return_type }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="empty-state">No member functions found</div>
               </div>
 
               <div class="tabs">
