@@ -2,8 +2,6 @@
 
 CodeBuddy is a code analysis and knowledge graph tool that parses source code using tree-sitter, extracts functions, classes, and their relationships, and provides comprehensive code analysis capabilities. It supports multiple programming languages and offers three interfaces: an MCP (Model Context Protocol) server for AI assistant integration, a REST API with web interface, and a command-line tool.
 
-![CodeBuddy Web Interface](public/image/codebuddy.png)
-
 ## Features
 
 ### Code Parsing and Analysis
@@ -30,6 +28,14 @@ CodeBuddy is a code analysis and knowledge graph tool that parses source code us
 - **MCP Server**: Integration with AI assistants via Model Context Protocol
 - **Web Server**: REST API and interactive browser-based interface with visualizations
 - **CLI**: Command-line tool for project management and code queries
+
+## Screenshots
+
+### Call Graph Visualization
+![Call Graph](screenshots/call-graph.png)
+
+### Code Analysis Dashboard
+![Analysis Dashboard](screenshots/analysis-dashboard.png)
 
 ## Requirements
 
