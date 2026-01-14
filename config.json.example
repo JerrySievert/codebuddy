@@ -1,0 +1,8 @@
+{
+  "database": {
+    "username": "postgres",
+    "password": "your_password",
+    "hostname": "localhost",
+    "database": "codebuddy"
+  }
+}

@@ -15,3 +15,4 @@ import './lib/csharp_parsing.mjs';
 import './lib/typescript_parsing.mjs';
 import './lib/class_struct_parsing.mjs';
 import './lib/mcp_tools.mjs';
+import './lib/api_routes.mjs';

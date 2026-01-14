@@ -255,6 +255,9 @@ await test('createMcpServer creates server with original tools', async (t) => {
     'function_callees',
     'project_list',
     'project_info',
+    'project_import',
+    'project_refresh',
+    'project_delete',
     'read_sourcecode',
     'function_caller_tree',
     'function_callee_tree'
@@ -263,4 +266,39 @@ await test('createMcpServer creates server with original tools', async (t) => {
   for (const toolName of originalTools) {
     t.assert.eq(hasTool(server, toolName), true, `Should have original tool '${toolName}'`);
   }
+});
+
+// ============ Project Tools Tests ============
+
+await test('project_import returns error for invalid path', async (t) => {
+  const server = createMcpServer();
+
+  const result = await callTool(server, 'project_import', {
+    name: 'test_import_project',
+    path: '/non/existent/path/xyz123'
+  });
+
+  t.assert.eq(result.isError, true, 'Should return an error');
+});
+
+await test('project_refresh returns error for non-existent project', async (t) => {
+  const server = createMcpServer();
+
+  const result = await callTool(server, 'project_refresh', {
+    name: 'non_existent_project_xyz123'
+  });
+
+  t.assert.eq(result.isError, true, 'Should return an error');
+  t.assert.eq(result.content[0].text.includes('does not exist'), true, 'Error message should mention does not exist');
+});
+
+await test('project_delete returns error for non-existent project', async (t) => {
+  const server = createMcpServer();
+
+  const result = await callTool(server, 'project_delete', {
+    name: 'non_existent_project_xyz123'
+  });
+
+  t.assert.eq(result.isError, true, 'Should return an error');
+  t.assert.eq(result.content[0].text.includes('not found'), true, 'Error message should mention not found');
 });
