@@ -124,7 +124,7 @@
               </div>
             </div>
 
-            <!-- Call Graph View -->
+            <!-- Call Graph / Flowchart View -->
             <div v-if="showCallGraph" class="card">
               <div class="breadcrumb">
                 <span class="breadcrumb-item" @click="closeCallGraph"
@@ -132,12 +132,52 @@
                 >
                 <span class="breadcrumb-separator">›</span>
                 <span class="breadcrumb-current"
-                  >Call Graph: {{ callGraphRoot }}</span
+                  >{{ graphViewType === 'callgraph' ? 'Call Graph' : graphViewType === 'callers' ? 'Caller Tree' : 'Callee Tree' }}: {{ callGraphRoot }}</span
                 >
               </div>
-              <h2>Call Graph: {{ callGraphRoot }}</h2>
+
+              <!-- View Type Selector -->
+              <div class="graph-view-selector">
+                <div class="view-tabs">
+                  <button
+                    class="view-tab"
+                    :class="{ active: graphViewType === 'callgraph' }"
+                    @click="switchGraphView('callgraph')"
+                  >
+                    Call Graph
+                  </button>
+                  <button
+                    class="view-tab"
+                    :class="{ active: graphViewType === 'callers' }"
+                    @click="switchGraphView('callers')"
+                  >
+                    Caller Tree
+                  </button>
+                  <button
+                    class="view-tab"
+                    :class="{ active: graphViewType === 'callees' }"
+                    @click="switchGraphView('callees')"
+                  >
+                    Callee Tree
+                  </button>
+                </div>
+                <div v-if="graphViewType !== 'callgraph'" class="depth-selector">
+                  <label>Depth:</label>
+                  <select v-model="treeDepth" @change="reloadTreeView">
+                    <option :value="1">1</option>
+                    <option :value="2">2</option>
+                    <option :value="3">3</option>
+                    <option :value="4">4</option>
+                    <option :value="5">5</option>
+                    <option :value="-1">Unlimited</option>
+                  </select>
+                </div>
+              </div>
+
+              <h2>{{ graphViewType === 'callgraph' ? 'Call Graph' : graphViewType === 'callers' ? 'Caller Tree' : 'Callee Tree' }}: {{ callGraphRoot }}</h2>
+
               <div v-if="loadingCallGraph" class="loading">
-                Loading call graph...
+                Loading {{ graphViewType === 'callgraph' ? 'call graph' : 'tree' }}...
               </div>
               <div v-else class="graph-container" ref="graphContainer">
                 <div class="graph-controls">
@@ -188,34 +228,72 @@
                         View Details
                       </button>
                       <button
+                        v-if="graphViewType === 'callgraph'"
                         class="btn-secondary"
                         @click="loadCallGraphForNode(selectedGraphNode.symbol)"
                       >
                         Recenter Graph
                       </button>
+                      <button
+                        v-else
+                        class="btn-secondary"
+                        @click="recenterTreeOnNode(selectedGraphNode.symbol)"
+                      >
+                        Recenter Tree
+                      </button>
                     </div>
                   </div>
                 </div>
                 <div class="graph-legend">
-                  <div class="legend-item">
-                    <div
-                      class="legend-circle"
-                      style="background: #fce4ec; border-color: #e91e63"
-                    ></div>
-                    <span>Root function</span>
-                  </div>
-                  <div class="legend-item">
-                    <div
-                      class="legend-circle"
-                      style="background: #e3f2fd; border-color: #2196f3"
-                    ></div>
-                    <span>Related functions</span>
-                  </div>
-                  <div class="legend-item">
-                    <span style="color: #999"
-                      >→ Arrow shows call direction</span
-                    >
-                  </div>
+                  <template v-if="graphViewType === 'callgraph'">
+                    <div class="legend-item">
+                      <div
+                        class="legend-circle"
+                        style="background: #fce4ec; border-color: #e91e63"
+                      ></div>
+                      <span>Root function</span>
+                    </div>
+                    <div class="legend-item">
+                      <div
+                        class="legend-circle"
+                        style="background: #e3f2fd; border-color: #2196f3"
+                      ></div>
+                      <span>Related functions</span>
+                    </div>
+                    <div class="legend-item">
+                      <span style="color: #999">→ Arrow shows call direction</span>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <div class="legend-item">
+                      <div
+                        class="legend-circle"
+                        style="background: #fce4ec; border-color: #e91e63"
+                      ></div>
+                      <span>Root function</span>
+                    </div>
+                    <div class="legend-item">
+                      <div
+                        class="legend-circle"
+                        style="background: #e8f5e9; border-color: #4caf50"
+                      ></div>
+                      <span>{{ graphViewType === 'callers' ? 'Callers' : 'Callees' }}</span>
+                    </div>
+                    <div class="legend-item">
+                      <div
+                        class="legend-circle"
+                        style="background: #fff3e0; border-color: #ff9800"
+                      ></div>
+                      <span>Truncated (depth limit)</span>
+                    </div>
+                    <div class="legend-item">
+                      <div
+                        class="legend-circle"
+                        style="background: #fce4ec; border-color: #9c27b0"
+                      ></div>
+                      <span>Loop detected</span>
+                    </div>
+                  </template>
                 </div>
               </div>
             </div>

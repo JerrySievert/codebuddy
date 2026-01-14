@@ -563,6 +563,123 @@ header h1 {
   border: 2px solid;
 }
 
+/* Graph View Selector */
+.graph-view-selector {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.view-tabs {
+  display: flex;
+  gap: 4px;
+  background: #e0e0e0;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.view-tab {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.view-tab:hover {
+  background: rgba(255, 255, 255, 0.5);
+  color: #333;
+}
+
+.view-tab.active {
+  background: white;
+  color: #1976d2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.depth-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.depth-selector label {
+  font-size: 13px;
+  color: #666;
+}
+
+.depth-selector select {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  background: white;
+  cursor: pointer;
+}
+
+.depth-selector select:focus {
+  outline: none;
+  border-color: #2196f3;
+}
+
+/* Tree Layout Styles */
+.tree-link {
+  fill: none;
+  stroke: #999;
+  stroke-opacity: 0.6;
+  stroke-width: 1.5px;
+}
+
+.tree-node {
+  cursor: pointer;
+}
+
+.tree-node circle {
+  transition: all 0.2s;
+}
+
+.tree-node:hover circle {
+  stroke-width: 3px;
+  filter: brightness(1.1);
+}
+
+.tree-node.selected circle {
+  stroke-width: 4px;
+  filter: drop-shadow(0 0 4px rgba(33, 150, 243, 0.5));
+}
+
+.tree-node text {
+  font-family: monospace;
+  font-size: 11px;
+  fill: #333;
+}
+
+.tree-node.truncated text {
+  fill: #ff9800;
+}
+
+.tree-node.loop text {
+  fill: #9c27b0;
+}
+
+.tree-node.not-found text {
+  fill: #999;
+  font-style: italic;
+}
+
+.node-status {
+  font-size: 14px;
+  font-weight: bold;
+}
+
 /* Complexity Styles */
 .complexity-card {
   background: #f8f9fa;

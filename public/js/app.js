@@ -36,6 +36,11 @@ createApp({
     const graphContainer = ref(null);
     const graphSvg = ref(null);
 
+    // Flowchart/tree view state
+    const graphViewType = ref('callgraph'); // 'callgraph', 'callers', 'callees'
+    const treeData = ref(null);
+    const treeDepth = ref(2);
+
     // Import/Refresh state
     const showImportModal = ref(false);
     const importPath = ref('');
@@ -391,11 +396,204 @@ createApp({
     const closeCallGraph = () => {
       showCallGraph.value = false;
       callGraphData.value = null;
+      treeData.value = null;
       selectedGraphNode.value = null;
+      graphViewType.value = 'callgraph';
       if (simulation) {
         simulation.stop();
       }
       updateUrl();
+    };
+
+    // Switch between graph view types
+    const switchGraphView = async (viewType) => {
+      if (graphViewType.value === viewType) return;
+      graphViewType.value = viewType;
+      selectedGraphNode.value = null;
+
+      if (viewType === 'callgraph') {
+        await loadCallGraphForNode(callGraphRoot.value);
+      } else {
+        await loadTreeView(callGraphRoot.value, viewType);
+      }
+    };
+
+    // Load caller or callee tree
+    const loadTreeView = async (functionName, viewType) => {
+      loadingCallGraph.value = true;
+      treeData.value = null;
+      selectedGraphNode.value = null;
+
+      const endpoint = viewType === 'callers' ? 'caller-tree' : 'callee-tree';
+
+      try {
+        const response = await fetch(
+          `/api/v1/functions/${encodeURIComponent(functionName)}/${endpoint}?project=${selectedProject.value.name}&depth=${treeDepth.value}`
+        );
+        treeData.value = await response.json();
+      } catch (error) {
+        console.error('Failed to load tree:', error);
+      } finally {
+        loadingCallGraph.value = false;
+        await nextTick();
+        setTimeout(() => {
+          renderTree();
+        }, 50);
+      }
+    };
+
+    // Reload tree view when depth changes
+    const reloadTreeView = async () => {
+      if (graphViewType.value !== 'callgraph') {
+        await loadTreeView(callGraphRoot.value, graphViewType.value);
+      }
+    };
+
+    // Recenter tree on a different node
+    const recenterTreeOnNode = async (symbol) => {
+      callGraphRoot.value = symbol;
+      await loadTreeView(symbol, graphViewType.value);
+    };
+
+    // Render tree using D3 tree layout
+    const renderTree = () => {
+      if (!treeData.value || !graphSvg.value) {
+        console.log('Missing tree data or SVG ref');
+        return;
+      }
+
+      const container = graphContainer.value;
+      const width = container.clientWidth || 800;
+      const height = container.clientHeight || 600;
+
+      // Clear previous graph
+      d3.select(graphSvg.value).selectAll('*').remove();
+
+      svg = d3.select(graphSvg.value);
+
+      // Add zoom behavior
+      zoom = d3
+        .zoom()
+        .scaleExtent([0.1, 4])
+        .on('zoom', (event) => {
+          g.attr('transform', event.transform);
+        });
+
+      svg.call(zoom);
+
+      g = svg.append('g')
+        .attr('transform', `translate(${width / 2}, 40)`);
+
+      // Convert tree data to D3 hierarchy
+      const childrenKey = graphViewType.value === 'callers' ? 'callers' : 'callees';
+
+      const root = d3.hierarchy(treeData.value, d => d[childrenKey]);
+
+      // Create tree layout - horizontal for better readability
+      const treeLayout = d3.tree()
+        .nodeSize([60, 180]);
+
+      treeLayout(root);
+
+      // Draw links
+      g.selectAll('.tree-link')
+        .data(root.links())
+        .join('path')
+        .attr('class', 'tree-link')
+        .attr('d', d3.linkHorizontal()
+          .x(d => d.y)
+          .y(d => d.x)
+        );
+
+      // Draw nodes
+      const node = g.selectAll('.tree-node')
+        .data(root.descendants())
+        .join('g')
+        .attr('class', d => {
+          let classes = 'tree-node';
+          if (d.depth === 0) classes += ' root';
+          if (d.data.truncated) classes += ' truncated';
+          if (d.data.loop) classes += ' loop';
+          if (d.data.notFound) classes += ' not-found';
+          return classes;
+        })
+        .attr('transform', d => `translate(${d.y},${d.x})`)
+        .on('click', (event, d) => {
+          event.stopPropagation();
+          selectedGraphNode.value = d.data;
+
+          // Update selected state
+          g.selectAll('.tree-node').classed('selected', n => n === d);
+        });
+
+      // Node circles
+      node.append('circle')
+        .attr('r', d => d.depth === 0 ? 12 : 10)
+        .attr('fill', d => {
+          if (d.depth === 0) return '#fce4ec';
+          if (d.data.loop) return '#fce4ec';
+          if (d.data.truncated) return '#fff3e0';
+          return '#e8f5e9';
+        })
+        .attr('stroke', d => {
+          if (d.depth === 0) return '#e91e63';
+          if (d.data.loop) return '#9c27b0';
+          if (d.data.truncated) return '#ff9800';
+          return '#4caf50';
+        })
+        .attr('stroke-width', 2);
+
+      // Node labels
+      node.append('text')
+        .attr('dy', '0.35em')
+        .attr('x', d => d.children ? -15 : 15)
+        .attr('text-anchor', d => d.children ? 'end' : 'start')
+        .text(d => {
+          const symbol = d.data.symbol;
+          if (symbol.length > 25) return symbol.substring(0, 22) + '...';
+          return symbol;
+        })
+        .clone(true).lower()
+        .attr('stroke', 'white')
+        .attr('stroke-width', 3);
+
+      // Add status indicators for special nodes
+      node.filter(d => d.data.truncated)
+        .append('text')
+        .attr('class', 'node-status')
+        .attr('dy', '0.35em')
+        .attr('x', d => d.children ? 15 : -15)
+        .attr('text-anchor', d => d.children ? 'start' : 'end')
+        .text('⋯')
+        .attr('fill', '#ff9800');
+
+      node.filter(d => d.data.loop)
+        .append('text')
+        .attr('class', 'node-status')
+        .attr('dy', '0.35em')
+        .attr('x', d => d.children ? 15 : -15)
+        .attr('text-anchor', d => d.children ? 'start' : 'end')
+        .text('↻')
+        .attr('fill', '#9c27b0');
+
+      // Click on background to deselect
+      svg.on('click', () => {
+        selectedGraphNode.value = null;
+        g.selectAll('.tree-node').classed('selected', false);
+      });
+
+      // Auto-fit the tree to the viewport
+      const bounds = g.node().getBBox();
+      const fullWidth = bounds.width + 100;
+      const fullHeight = bounds.height + 100;
+      const scale = Math.min(width / fullWidth, height / fullHeight, 1);
+
+      svg.call(
+        zoom.transform,
+        d3.zoomIdentity
+          .translate(width / 2 - bounds.x * scale - bounds.width * scale / 2, height / 2 - bounds.y * scale - bounds.height * scale / 2)
+          .scale(scale)
+      );
     };
 
     const renderGraph = () => {
@@ -899,6 +1097,9 @@ createApp({
       selectedGraphNode,
       graphContainer,
       graphSvg,
+      graphViewType,
+      treeData,
+      treeDepth,
       selectProject,
       selectFile,
       clearFile,
@@ -914,6 +1115,10 @@ createApp({
       openCallGraph,
       loadCallGraphForNode,
       closeCallGraph,
+      switchGraphView,
+      loadTreeView,
+      reloadTreeView,
+      recenterTreeOnNode,
       zoomIn,
       zoomOut,
       resetZoom,
