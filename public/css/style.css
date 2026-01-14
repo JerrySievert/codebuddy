@@ -1641,3 +1641,760 @@ header h1 {
   background: #ccc;
   cursor: not-allowed;
 }
+
+/* Analysis Dashboard Styles */
+.analysis-dashboard {
+  max-width: 100%;
+}
+
+.analysis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.analysis-header h2 {
+  margin: 0;
+  font-size: 1.5em;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* Health Score Card */
+.health-score-card {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  color: white;
+  margin-bottom: 20px;
+}
+
+.health-score-circle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.health-score-value {
+  font-size: 2em;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.health-score-label {
+  font-size: 0.7em;
+  opacity: 0.9;
+  margin-top: 2px;
+}
+
+.health-score-info {
+  flex: 1;
+}
+
+.health-rating {
+  font-size: 1.3em;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.health-description {
+  font-size: 0.85em;
+  opacity: 0.9;
+}
+
+/* Analysis Tabs - Compact horizontal scrolling */
+.analysis-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 20px;
+  padding: 4px;
+  background: #f0f0f0;
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.analysis-tab {
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8em;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.analysis-tab:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: #333;
+}
+
+.analysis-tab.active {
+  background: white;
+  color: #1976d2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Analysis Summary Grid - Overview cards */
+.analysis-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.analysis-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.analysis-summary-card:hover {
+  border-color: #2196f3;
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);
+}
+
+.analysis-summary-card.has-issues {
+  border-left: 4px solid #ff9800;
+}
+
+.analysis-summary-card.has-critical {
+  border-left: 4px solid #f44336;
+}
+
+.summary-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 1em;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.summary-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.summary-title {
+  font-weight: 600;
+  font-size: 0.9em;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.summary-stat {
+  font-size: 0.85em;
+  color: #1976d2;
+  font-weight: 500;
+}
+
+.summary-detail {
+  font-size: 0.75em;
+  color: #888;
+  margin-top: 2px;
+}
+
+/* Stats bar for detail views */
+.analysis-stats-bar {
+  display: flex;
+  gap: 24px;
+  padding: 16px 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-item.stat-warning .stat-value {
+  color: #ff9800;
+}
+
+.stat-value {
+  font-size: 1.8em;
+  font-weight: bold;
+  color: #333;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.8em;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* Metrics specific styles */
+.metrics-overview {
+  margin-bottom: 24px;
+}
+
+.metric-big-card {
+  text-align: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  color: white;
+  margin-bottom: 16px;
+}
+
+.metric-big-value {
+  font-size: 3em;
+  font-weight: bold;
+}
+
+.metric-big-label {
+  font-size: 0.9em;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+
+.metric-big-rating {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 16px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  text-align: center;
+  padding: 16px 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.metric-value {
+  font-size: 1.5em;
+  font-weight: bold;
+  color: #333;
+}
+
+.metric-label {
+  font-size: 0.75em;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* Analysis Detail Tables - div-based */
+.analysis-table {
+  width: 100%;
+  font-size: 0.85em;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.analysis-table .table-header {
+  display: flex;
+  background: #f5f5f5;
+  font-weight: 600;
+  color: #555;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.analysis-table .table-header span {
+  flex: 1;
+  padding: 10px 12px;
+}
+
+.analysis-table .table-row {
+  display: flex;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.analysis-table .table-row:last-child {
+  border-bottom: none;
+}
+
+.analysis-table .table-row:hover {
+  background: #f0f7ff;
+}
+
+.analysis-table .table-row.warning-row {
+  background: #fff8e1;
+}
+
+.analysis-table .table-row.warning-row:hover {
+  background: #ffecb3;
+}
+
+.analysis-table .table-row span {
+  flex: 1;
+  padding: 10px 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analysis-table .fn-name {
+  font-family: monospace;
+  font-weight: 500;
+  color: #1976d2;
+}
+
+.analysis-table .fn-file {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.analysis-table .fn-reason {
+  color: #e65100;
+  font-style: italic;
+}
+
+.analysis-table .circular-arrow {
+  text-align: center;
+  color: #f44336;
+  font-weight: bold;
+}
+
+/* Analysis Badges */
+.analysis-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+.analysis-badge.high {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.analysis-badge.medium {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.analysis-badge.low {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.analysis-badge.info {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+/* Code Smell and Security Icons */
+.issue-icon {
+  margin-right: 8px;
+}
+
+.issue-icon.security {
+  color: #c62828;
+}
+
+.issue-icon.smell {
+  color: #ff9800;
+}
+
+.issue-icon.type {
+  color: #9c27b0;
+}
+
+/* Metrics Grid */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e0e0e0;
+}
+
+.metric-card .value {
+  font-size: 2.2em;
+  font-weight: bold;
+  color: #1976d2;
+  margin-bottom: 6px;
+}
+
+.metric-card .label {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.metric-card.warning .value {
+  color: #ff9800;
+}
+
+.metric-card.error .value {
+  color: #f44336;
+}
+
+/* Dependency Graph Placeholder */
+.dependency-graph-placeholder {
+  background: #f8f9fa;
+  border: 2px dashed #ddd;
+  border-radius: 8px;
+  padding: 40px;
+  text-align: center;
+  color: #999;
+  margin-bottom: 20px;
+}
+
+.dependency-graph-placeholder h4 {
+  margin: 0 0 8px 0;
+  color: #666;
+}
+
+/* Documentation Coverage Bar */
+.coverage-bar {
+  height: 24px;
+  background: #f0f0f0;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.coverage-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4caf50, #8bc34a);
+  transition: width 0.5s ease;
+}
+
+.coverage-fill.low {
+  background: linear-gradient(90deg, #f44336, #ff5722);
+}
+
+.coverage-fill.medium {
+  background: linear-gradient(90deg, #ff9800, #ffc107);
+}
+
+.coverage-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.85em;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Duplication Info */
+.duplication-group {
+  background: #fff8e1;
+  border-left: 4px solid #ffc107;
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: 0 8px 8px 0;
+}
+
+.duplication-original,
+.duplication-clone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: white;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.duplication-original:hover,
+.duplication-clone:hover {
+  background: #f5f5f5;
+}
+
+.duplication-clones {
+  margin-left: 20px;
+  padding-left: 16px;
+  border-left: 2px solid #ffc107;
+}
+
+.dup-label {
+  font-size: 0.8em;
+  color: #666;
+  font-weight: 500;
+  min-width: 120px;
+}
+
+.duplication-original .fn-name,
+.duplication-clone .fn-name {
+  font-family: monospace;
+  color: #1976d2;
+  font-weight: 500;
+}
+
+.duplication-original .fn-file,
+.duplication-clone .fn-file {
+  color: #666;
+  font-size: 0.85em;
+}
+
+.fn-lines {
+  color: #888;
+  font-size: 0.85em;
+  margin-left: auto;
+}
+
+/* Analysis Empty State */
+.analysis-empty,
+.empty-state.success-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.empty-state.success-state {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.analysis-empty .icon {
+  font-size: 4em;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.analysis-empty h4 {
+  margin: 0 0 8px 0;
+  color: #666;
+}
+
+/* Security severity badges */
+.severity-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.severity-badge.high {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.severity-badge.medium {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.severity-badge.low {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+/* Complexity badge in tables */
+.complexity-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75em;
+  font-weight: 500;
+}
+
+.complexity-badge.complexity-low {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.complexity-badge.complexity-moderate {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.complexity-badge.complexity-high {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.complexity-badge.complexity-very_high {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+/* Loading state for analysis */
+.analysis-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #666;
+}
+
+.analysis-loading .spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e0e0e0;
+  border-top-color: #2196f3;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Circular Dependencies Warning */
+.circular-deps-warning {
+  background: #ffebee;
+  border-left: 4px solid #f44336;
+  padding: 16px;
+  margin-bottom: 20px;
+  border-radius: 0 8px 8px 0;
+}
+
+.circular-deps-warning h4 {
+  margin: 0 0 12px 0;
+  color: #c62828;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.circular-path {
+  background: white;
+  padding: 12px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9em;
+  margin-bottom: 8px;
+}
+
+.circular-path:last-child {
+  margin-bottom: 0;
+}
+
+/* Variable Scope Visualization */
+.scope-tree {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.scope-level {
+  padding-left: 20px;
+  border-left: 2px solid #e0e0e0;
+  margin-left: 8px;
+}
+
+.scope-var {
+  padding: 4px 8px;
+  margin: 4px 0;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scope-var.unused {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.scope-var.shadowed {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.scope-var.normal {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+/* API Surface Table */
+.api-surface-table {
+  width: 100%;
+}
+
+.api-surface-table .visibility {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+.api-surface-table .visibility.public {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.api-surface-table .visibility.private {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.api-surface-table .visibility.protected {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+/* Type Analysis Details */
+.type-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.type-tag {
+  background: #f3e5f5;
+  color: #7b1fa2;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-family: monospace;
+}

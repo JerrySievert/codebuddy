@@ -86,6 +86,14 @@ createApp({
     const showJobsView = ref(false);
     let jobPollInterval = null;
 
+    // Analysis state
+    const showAnalysisView = ref(false);
+    const analysisData = ref(null);
+    const loadingAnalysis = ref(false);
+    const analysisTab = ref('overview');
+    const analysisDetail = ref(null);
+    const loadingAnalysisDetail = ref(false);
+
     let simulation = null;
     let svg = null;
     let g = null;
@@ -1618,6 +1626,10 @@ createApp({
       callers.value = [];
       callees.value = [];
       showJobsView.value = false;
+      showAnalysisView.value = false;
+      analysisData.value = null;
+      analysisDetail.value = null;
+      analysisTab.value = 'overview';
       if (simulation) {
         simulation.stop();
       }
@@ -1677,10 +1689,107 @@ createApp({
         selectedFunction.value = null;
         showCallGraph.value = false;
         showingAllFunctions.value = false;
+        showAnalysisView.value = false;
         // Refresh job data
         await loadJobQueue();
         startJobPolling();
       }
+    };
+
+    // Analysis view functions
+    const toggleAnalysisView = async () => {
+      console.log('toggleAnalysisView called, selectedProject:', selectedProject.value);
+      if (!selectedProject.value) return;
+
+      showAnalysisView.value = !showAnalysisView.value;
+      console.log('showAnalysisView is now:', showAnalysisView.value);
+      if (showAnalysisView.value) {
+        // Clear other views
+        selectedFile.value = null;
+        selectedFunction.value = null;
+        showCallGraph.value = false;
+        showingAllFunctions.value = false;
+        showJobsView.value = false;
+        // Load analysis data
+        await loadAnalysisDashboard();
+      }
+    };
+
+    const closeAnalysisView = () => {
+      showAnalysisView.value = false;
+      analysisData.value = null;
+      analysisDetail.value = null;
+      analysisTab.value = 'overview';
+    };
+
+    const loadAnalysisDashboard = async () => {
+      if (!selectedProject.value) return;
+
+      loadingAnalysis.value = true;
+      analysisData.value = null;
+      analysisDetail.value = null;
+      analysisTab.value = 'overview';
+
+      try {
+        const response = await fetch(
+          `/api/v1/projects/${selectedProject.value.name}/analysis`
+        );
+        analysisData.value = await response.json();
+      } catch (error) {
+        console.error('Failed to load analysis dashboard:', error);
+      } finally {
+        loadingAnalysis.value = false;
+      }
+    };
+
+    const loadAnalysisDetail = async (type) => {
+      if (!selectedProject.value) return;
+
+      loadingAnalysisDetail.value = true;
+      analysisDetail.value = null;
+
+      try {
+        const response = await fetch(
+          `/api/v1/projects/${selectedProject.value.name}/analysis/${type}`
+        );
+        analysisDetail.value = await response.json();
+      } catch (error) {
+        console.error(`Failed to load ${type} analysis:`, error);
+      } finally {
+        loadingAnalysisDetail.value = false;
+      }
+    };
+
+    const navigateToFunctionById = async (fn) => {
+      if (!fn || !fn.symbol) return;
+
+      showAnalysisView.value = false;
+      analysisData.value = null;
+
+      const projectParam = selectedProject.value
+        ? `?project=${selectedProject.value.name}`
+        : '';
+
+      try {
+        const response = await fetch(
+          `/api/v1/functions/${encodeURIComponent(fn.symbol)}${projectParam}`
+        );
+        const results = await response.json();
+        if (results.length > 0) {
+          const match = fn.filename
+            ? results.find((r) => r.filename === fn.filename) || results[0]
+            : results[0];
+          selectedFunction.value = match;
+          selectedFile.value = match.filename;
+        }
+      } catch (error) {
+        console.error('Failed to navigate to function:', error);
+      }
+
+      activeTab.value = 'source';
+      callers.value = [];
+      callees.value = [];
+      updateUrl();
     };
 
     const formatDate = (dateStr) => {
@@ -1944,7 +2053,18 @@ createApp({
       showJobsView,
       toggleJobsView,
       formatDate,
-      formatDuration
+      formatDuration,
+      showAnalysisView,
+      analysisData,
+      loadingAnalysis,
+      analysisTab,
+      analysisDetail,
+      loadingAnalysisDetail,
+      toggleAnalysisView,
+      closeAnalysisView,
+      loadAnalysisDashboard,
+      loadAnalysisDetail,
+      navigateToFunctionById
     };
   }
 }).mount('#app');

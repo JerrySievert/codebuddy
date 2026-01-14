@@ -24,6 +24,15 @@
           <div class="header-nav">
             <button
               class="nav-item"
+              :class="{ active: showAnalysisView }"
+              @click="toggleAnalysisView"
+              :disabled="!selectedProject"
+              :title="!selectedProject ? 'Select a project first' : 'View code analysis'"
+            >
+              Analysis
+            </button>
+            <button
+              class="nav-item"
               :class="{ active: showJobsView }"
               @click="toggleJobsView"
             >
@@ -154,7 +163,7 @@
             </div>
 
             <!-- Call Graph / Flowchart View -->
-            <div v-if="showCallGraph" class="card">
+            <div v-if="showCallGraph && !showAnalysisView" class="card">
               <div class="breadcrumb">
                 <span class="breadcrumb-item" @click="closeCallGraph"
                   >{{ selectedProject?.name }}</span
@@ -328,7 +337,7 @@
             </div>
 
             <!-- Jobs View -->
-            <div v-if="showJobsView" class="card">
+            <div v-if="showJobsView && !showAnalysisView" class="card">
               <h2>Job Queue</h2>
 
               <!-- Stats Summary -->
@@ -412,9 +421,516 @@
               </div>
             </div>
 
+            <!-- Analysis View -->
+            <div v-if="showAnalysisView && selectedProject" class="card analysis-dashboard">
+              <div class="breadcrumb">
+                <span class="breadcrumb-item" @click="closeAnalysisView">{{ selectedProject.name }}</span>
+                <span class="breadcrumb-separator">›</span>
+                <span class="breadcrumb-current">Code Analysis</span>
+              </div>
+
+              <h2>Code Analysis Dashboard</h2>
+
+              <!-- Loading State -->
+              <div v-if="loadingAnalysis" class="loading">Loading analysis...</div>
+
+              <!-- Analysis Dashboard -->
+              <div v-else-if="analysisData">
+                <!-- Health Score Card -->
+                <div class="health-score-card" :class="'health-' + analysisData.health_rating.toLowerCase()">
+                  <div class="health-score-circle">
+                    <span class="health-score-value">{{ analysisData.health_score }}</span>
+                    <span class="health-score-label">Health</span>
+                  </div>
+                  <div class="health-score-info">
+                    <div class="health-rating">{{ analysisData.health_rating }}</div>
+                    <div class="health-description">Overall code quality score based on multiple analysis factors</div>
+                  </div>
+                </div>
+
+                <!-- Analysis Tabs -->
+                <div class="analysis-tabs">
+                  <button class="analysis-tab" :class="{ active: analysisTab === 'overview' }" @click="analysisTab = 'overview'">Overview</button>
+                  <button class="analysis-tab" :class="{ active: analysisTab === 'metrics' }" @click="analysisTab = 'metrics'; loadAnalysisDetail('metrics')">Metrics</button>
+                  <button class="analysis-tab" :class="{ active: analysisTab === 'dead-code' }" @click="analysisTab = 'dead-code'; loadAnalysisDetail('dead-code')">Dead Code</button>
+                  <button class="analysis-tab" :class="{ active: analysisTab === 'duplication' }" @click="analysisTab = 'duplication'; loadAnalysisDetail('duplication')">Duplication</button>
+                  <button class="analysis-tab" :class="{ active: analysisTab === 'dependencies' }" @click="analysisTab = 'dependencies'; loadAnalysisDetail('dependencies')">Dependencies</button>
+                  <button class="analysis-tab" :class="{ active: analysisTab === 'security' }" @click="analysisTab = 'security'; loadAnalysisDetail('security')">Security</button>
+                  <button class="analysis-tab" :class="{ active: analysisTab === 'code-smells' }" @click="analysisTab = 'code-smells'; loadAnalysisDetail('code-smells')">Code Smells</button>
+                  <button class="analysis-tab" :class="{ active: analysisTab === 'types' }" @click="analysisTab = 'types'; loadAnalysisDetail('types')">Types</button>
+                  <button class="analysis-tab" :class="{ active: analysisTab === 'api-surface' }" @click="analysisTab = 'api-surface'; loadAnalysisDetail('api-surface')">API Surface</button>
+                  <button class="analysis-tab" :class="{ active: analysisTab === 'documentation' }" @click="analysisTab = 'documentation'; loadAnalysisDetail('documentation')">Documentation</button>
+                  <button class="analysis-tab" :class="{ active: analysisTab === 'scope' }" @click="analysisTab = 'scope'; loadAnalysisDetail('scope')">Variable Scope</button>
+                </div>
+
+                <!-- Overview Tab -->
+                <div v-if="analysisTab === 'overview'" class="analysis-content">
+                  <div class="analysis-summary-grid">
+                    <!-- Metrics Summary -->
+                    <div class="analysis-summary-card" @click="analysisTab = 'metrics'; loadAnalysisDetail('metrics')">
+                      <div class="summary-icon metrics-icon">M</div>
+                      <div class="summary-info">
+                        <div class="summary-title">Code Metrics</div>
+                        <div class="summary-stat">{{ analysisData.summaries.metrics.total_functions }} functions</div>
+                        <div class="summary-detail">Maintainability: {{ analysisData.summaries.metrics.maintainability_rating }}</div>
+                      </div>
+                    </div>
+
+                    <!-- Dead Code Summary -->
+                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.dead_code.dead_function_count > 0 }" @click="analysisTab = 'dead-code'; loadAnalysisDetail('dead-code')">
+                      <div class="summary-icon dead-code-icon">D</div>
+                      <div class="summary-info">
+                        <div class="summary-title">Dead Code</div>
+                        <div class="summary-stat">{{ analysisData.summaries.dead_code.dead_function_count }} unused functions</div>
+                        <div class="summary-detail">{{ analysisData.summaries.dead_code.dead_code_percentage }}% dead code</div>
+                      </div>
+                    </div>
+
+                    <!-- Duplication Summary -->
+                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.duplication.duplicate_group_count > 0 }" @click="analysisTab = 'duplication'; loadAnalysisDetail('duplication')">
+                      <div class="summary-icon duplication-icon">2x</div>
+                      <div class="summary-info">
+                        <div class="summary-title">Code Duplication</div>
+                        <div class="summary-stat">{{ analysisData.summaries.duplication.duplicate_group_count }} duplicate groups</div>
+                        <div class="summary-detail">{{ analysisData.summaries.duplication.duplication_percentage }}% duplicated</div>
+                      </div>
+                    </div>
+
+                    <!-- Dependencies Summary -->
+                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.dependencies.circular_dependency_count > 0 }" @click="analysisTab = 'dependencies'; loadAnalysisDetail('dependencies')">
+                      <div class="summary-icon deps-icon">&#8644;</div>
+                      <div class="summary-info">
+                        <div class="summary-title">Dependencies</div>
+                        <div class="summary-stat">{{ analysisData.summaries.dependencies.total_dependencies }} dependencies</div>
+                        <div class="summary-detail">{{ analysisData.summaries.dependencies.circular_dependency_count }} circular</div>
+                      </div>
+                    </div>
+
+                    <!-- Security Summary -->
+                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.security.total_vulnerabilities > 0, 'has-critical': analysisData.summaries.security.high_severity > 0 }" @click="analysisTab = 'security'; loadAnalysisDetail('security')">
+                      <div class="summary-icon security-icon">!</div>
+                      <div class="summary-info">
+                        <div class="summary-title">Security</div>
+                        <div class="summary-stat">{{ analysisData.summaries.security.total_vulnerabilities }} issues found</div>
+                        <div class="summary-detail">{{ analysisData.summaries.security.high_severity }} high severity</div>
+                      </div>
+                    </div>
+
+                    <!-- Code Smells Summary -->
+                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.code_smells.total_smells > 0 }" @click="analysisTab = 'code-smells'; loadAnalysisDetail('code-smells')">
+                      <div class="summary-icon smells-icon">~</div>
+                      <div class="summary-info">
+                        <div class="summary-title">Code Smells</div>
+                        <div class="summary-stat">{{ analysisData.summaries.code_smells.total_smells }} smells detected</div>
+                        <div class="summary-detail">{{ analysisData.summaries.code_smells.smell_density }}% smell density</div>
+                      </div>
+                    </div>
+
+                    <!-- Types Summary -->
+                    <div class="analysis-summary-card" @click="analysisTab = 'types'; loadAnalysisDetail('types')">
+                      <div class="summary-icon types-icon">T</div>
+                      <div class="summary-info">
+                        <div class="summary-title">Type Analysis</div>
+                        <div class="summary-stat">{{ analysisData.summaries.types.total_dynamic_functions }} dynamic functions</div>
+                        <div class="summary-detail">{{ analysisData.summaries.types.type_coverage_percentage }}% type coverage</div>
+                      </div>
+                    </div>
+
+                    <!-- API Surface Summary -->
+                    <div class="analysis-summary-card" @click="analysisTab = 'api-surface'; loadAnalysisDetail('api-surface')">
+                      <div class="summary-icon api-icon">API</div>
+                      <div class="summary-info">
+                        <div class="summary-title">API Surface</div>
+                        <div class="summary-stat">{{ analysisData.summaries.api_surface.public_count }} public functions</div>
+                        <div class="summary-detail">{{ analysisData.summaries.api_surface.documentation_coverage }}% documented</div>
+                      </div>
+                    </div>
+
+                    <!-- Documentation Summary -->
+                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.documentation.coverage_percentage < 50 }" @click="analysisTab = 'documentation'; loadAnalysisDetail('documentation')">
+                      <div class="summary-icon docs-icon">D</div>
+                      <div class="summary-info">
+                        <div class="summary-title">Documentation</div>
+                        <div class="summary-stat">{{ analysisData.summaries.documentation.coverage_percentage }}% coverage</div>
+                        <div class="summary-detail">{{ analysisData.summaries.documentation.undocumented }} undocumented</div>
+                      </div>
+                    </div>
+
+                    <!-- Variable Scope Summary -->
+                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.scope.total_issues > 0 }" @click="analysisTab = 'scope'; loadAnalysisDetail('scope')">
+                      <div class="summary-icon scope-icon">{}</div>
+                      <div class="summary-info">
+                        <div class="summary-title">Variable Scope</div>
+                        <div class="summary-stat">{{ analysisData.summaries.scope.total_issues }} issues</div>
+                        <div class="summary-detail">{{ analysisData.summaries.scope.global_variable_issues }} global vars</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Metrics Tab -->
+                <div v-if="analysisTab === 'metrics'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading">Loading metrics...</div>
+                  <div v-else-if="analysisDetail">
+                    <div class="metrics-overview">
+                      <div class="metric-big-card">
+                        <div class="metric-big-value">{{ analysisDetail.maintainability_index }}</div>
+                        <div class="metric-big-label">Maintainability Index</div>
+                        <div class="metric-big-rating" :class="'rating-' + analysisDetail.maintainability_rating.toLowerCase().replace(' ', '-')">{{ analysisDetail.maintainability_rating }}</div>
+                      </div>
+                      <div class="metrics-grid">
+                        <div class="metric-card"><div class="metric-value">{{ analysisDetail.function_count }}</div><div class="metric-label">Functions</div></div>
+                        <div class="metric-card"><div class="metric-value">{{ analysisDetail.aggregate.total_loc }}</div><div class="metric-label">Total LOC</div></div>
+                        <div class="metric-card"><div class="metric-value">{{ analysisDetail.aggregate.avg_cyclomatic }}</div><div class="metric-label">Avg Cyclomatic</div></div>
+                        <div class="metric-card"><div class="metric-value">{{ analysisDetail.aggregate.max_cyclomatic }}</div><div class="metric-label">Max Cyclomatic</div></div>
+                        <div class="metric-card"><div class="metric-value">{{ analysisDetail.aggregate.avg_loc }}</div><div class="metric-label">Avg LOC</div></div>
+                        <div class="metric-card"><div class="metric-value">{{ analysisDetail.aggregate.max_nesting_depth }}</div><div class="metric-label">Max Nesting</div></div>
+                      </div>
+                    </div>
+                    <h3>Most Complex Functions</h3>
+                    <div class="analysis-table">
+                      <div class="table-header"><span>Function</span><span>File</span><span>Cyclomatic</span><span>LOC</span><span>Rating</span></div>
+                      <div v-for="fn in analysisDetail.most_complex.slice(0, 10)" :key="fn.id" class="table-row" @click="navigateToFunctionById(fn)">
+                        <span class="fn-name">{{ fn.symbol }}</span>
+                        <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                        <span>{{ fn.cyclomatic }}</span>
+                        <span>{{ fn.loc }}</span>
+                        <span class="complexity-badge" :class="'complexity-' + fn.rating">{{ fn.label }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Dead Code Tab -->
+                <div v-if="analysisTab === 'dead-code'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading">Loading dead code analysis...</div>
+                  <div v-else-if="analysisDetail">
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.dead_function_count }}</span><span class="stat-label">Dead Functions</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.dead_lines_of_code }}</span><span class="stat-label">Dead LOC</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.dead_code_percentage }}%</span><span class="stat-label">Dead Code</span></div>
+                    </div>
+                    <h3>Unreferenced Functions</h3>
+                    <div v-if="analysisDetail.dead_functions.length === 0" class="empty-state success-state">No dead code detected!</div>
+                    <div v-else class="analysis-table">
+                      <div class="table-header"><span>Function</span><span>File</span><span>Lines</span></div>
+                      <div v-for="fn in analysisDetail.dead_functions" :key="fn.id" class="table-row" @click="navigateToFunctionById(fn)">
+                        <span class="fn-name">{{ fn.symbol }}</span>
+                        <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                        <span>{{ fn.lines }}</span>
+                      </div>
+                    </div>
+                    <div v-if="analysisDetail.potential_entry_points.length > 0">
+                      <h3>Potential Entry Points (may not be dead)</h3>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>Function</span><span>File</span><span>Reason</span></div>
+                        <div v-for="fn in analysisDetail.potential_entry_points.slice(0, 20)" :key="fn.id" class="table-row warning-row">
+                          <span class="fn-name">{{ fn.symbol }}</span>
+                          <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                          <span class="fn-reason">{{ fn.reason }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Duplication Tab -->
+                <div v-if="analysisTab === 'duplication'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading">Loading duplication analysis...</div>
+                  <div v-else-if="analysisDetail">
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.duplicate_group_count }}</span><span class="stat-label">Duplicate Groups</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_clone_count }}</span><span class="stat-label">Total Clones</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.duplication_percentage }}%</span><span class="stat-label">Duplication</span></div>
+                    </div>
+                    <div v-if="analysisDetail.duplicate_groups.length === 0" class="empty-state success-state">No code duplication detected!</div>
+                    <div v-else>
+                      <div v-for="(group, idx) in analysisDetail.duplicate_groups" :key="idx" class="duplication-group">
+                        <div class="duplication-original" @click="navigateToFunctionById(group.original)">
+                          <span class="dup-label">Original:</span>
+                          <span class="fn-name">{{ group.original.symbol }}</span>
+                          <span class="fn-file">{{ group.original.filename }}:{{ group.original.start_line }}</span>
+                          <span class="fn-lines">{{ group.original.lines }} lines</span>
+                        </div>
+                        <div class="duplication-clones">
+                          <div v-for="clone in group.clones" :key="clone.id" class="duplication-clone" @click="navigateToFunctionById(clone)">
+                            <span class="dup-label">Clone ({{ clone.similarity }}% similar):</span>
+                            <span class="fn-name">{{ clone.symbol }}</span>
+                            <span class="fn-file">{{ clone.filename }}:{{ clone.start_line }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Dependencies Tab -->
+                <div v-if="analysisTab === 'dependencies'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading">Loading dependency analysis...</div>
+                  <div v-else-if="analysisDetail">
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_files }}</span><span class="stat-label">Files</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_dependencies }}</span><span class="stat-label">Dependencies</span></div>
+                      <div class="stat-item" :class="{ 'stat-warning': analysisDetail.summary.circular_dependency_count > 0 }"><span class="stat-value">{{ analysisDetail.summary.circular_dependency_count }}</span><span class="stat-label">Circular Deps</span></div>
+                    </div>
+                    <div v-if="analysisDetail.circular_dependencies.length > 0">
+                      <h3>Circular Dependencies</h3>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>File A</span><span></span><span>File B</span></div>
+                        <div v-for="(dep, idx) in analysisDetail.circular_dependencies" :key="idx" class="table-row warning-row">
+                          <span>{{ dep.file_a }}</span>
+                          <span class="circular-arrow">&#8644;</span>
+                          <span>{{ dep.file_b }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <h3>File Coupling Metrics</h3>
+                    <div class="analysis-table">
+                      <div class="table-header"><span>File</span><span>Afferent (In)</span><span>Efferent (Out)</span><span>Instability</span></div>
+                      <div v-for="file in analysisDetail.file_metrics.slice(0, 20)" :key="file.filename" class="table-row">
+                        <span class="fn-file">{{ file.filename }}</span>
+                        <span>{{ file.afferent_coupling }}</span>
+                        <span>{{ file.efferent_coupling }}</span>
+                        <span>{{ file.instability }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Security Tab -->
+                <div v-if="analysisTab === 'security'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading">Loading security analysis...</div>
+                  <div v-else-if="analysisDetail">
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item" :class="{ 'stat-critical': analysisDetail.summary.high_severity > 0 }"><span class="stat-value">{{ analysisDetail.summary.high_severity }}</span><span class="stat-label">High Severity</span></div>
+                      <div class="stat-item" :class="{ 'stat-warning': analysisDetail.summary.medium_severity > 0 }"><span class="stat-value">{{ analysisDetail.summary.medium_severity }}</span><span class="stat-label">Medium Severity</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.low_severity }}</span><span class="stat-label">Low Severity</span></div>
+                    </div>
+                    <div v-if="analysisDetail.vulnerabilities.length === 0" class="empty-state success-state">No security vulnerabilities detected!</div>
+                    <div v-else class="analysis-table">
+                      <div class="table-header"><span>Function</span><span>File</span><span>Vulnerability</span><span>Severity</span></div>
+                      <div v-for="(vuln, idx) in analysisDetail.vulnerabilities" :key="idx" class="table-row" :class="'severity-' + vuln.severity" @click="navigateToFunctionById(vuln)">
+                        <span class="fn-name">{{ vuln.symbol }}</span>
+                        <span class="fn-file">{{ vuln.filename }}:{{ vuln.start_line }}</span>
+                        <span class="vuln-name">{{ vuln.vulnerability_name }}</span>
+                        <span class="severity-badge" :class="vuln.severity">{{ vuln.severity }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Code Smells Tab -->
+                <div v-if="analysisTab === 'code-smells'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading">Loading code smell analysis...</div>
+                  <div v-else-if="analysisDetail">
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_smells }}</span><span class="stat-label">Total Smells</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.smell_density }}%</span><span class="stat-label">Smell Density</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.god_functions }}</span><span class="stat-label">God Functions</span></div>
+                    </div>
+                    <div v-if="analysisDetail.summary.total_smells === 0" class="empty-state success-state">No code smells detected!</div>
+                    <div v-else>
+                      <div v-if="analysisDetail.smells.long_methods.length > 0">
+                        <h3>Long Methods (>50 lines)</h3>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span><span>Lines</span></div>
+                          <div v-for="fn in analysisDetail.smells.long_methods" :key="fn.id" class="table-row" @click="navigateToFunctionById(fn)">
+                            <span class="fn-name">{{ fn.symbol }}</span>
+                            <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                            <span>{{ fn.lines }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div v-if="analysisDetail.smells.high_complexity.length > 0">
+                        <h3>High Complexity (>15)</h3>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span><span>Cyclomatic</span></div>
+                          <div v-for="fn in analysisDetail.smells.high_complexity" :key="fn.id" class="table-row" @click="navigateToFunctionById(fn)">
+                            <span class="fn-name">{{ fn.symbol }}</span>
+                            <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                            <span>{{ fn.cyclomatic }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div v-if="analysisDetail.smells.long_parameter_lists.length > 0">
+                        <h3>Long Parameter Lists (>5)</h3>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span><span>Parameters</span></div>
+                          <div v-for="fn in analysisDetail.smells.long_parameter_lists" :key="fn.id" class="table-row" @click="navigateToFunctionById(fn)">
+                            <span class="fn-name">{{ fn.symbol }}</span>
+                            <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                            <span>{{ fn.parameter_count }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div v-if="analysisDetail.smells.deep_nesting.length > 0">
+                        <h3>Deep Nesting (>4 levels)</h3>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span><span>Depth</span></div>
+                          <div v-for="fn in analysisDetail.smells.deep_nesting" :key="fn.id" class="table-row" @click="navigateToFunctionById(fn)">
+                            <span class="fn-name">{{ fn.symbol }}</span>
+                            <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                            <span>{{ fn.nesting_depth }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div v-if="analysisDetail.smells.god_functions && analysisDetail.smells.god_functions.length > 0">
+                        <h3>God Functions (>200 lines)</h3>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span><span>Lines</span></div>
+                          <div v-for="fn in analysisDetail.smells.god_functions" :key="fn.id" class="table-row" @click="navigateToFunctionById(fn)">
+                            <span class="fn-name">{{ fn.symbol }}</span>
+                            <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                            <span>{{ fn.lines }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div v-if="analysisDetail.smells.duplicate_code_suspects && analysisDetail.smells.duplicate_code_suspects.length > 0">
+                        <h3>Duplicate Code Suspects</h3>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Base Name</span><span>Occurrences</span><span>Severity</span></div>
+                          <div v-for="(dup, idx) in analysisDetail.smells.duplicate_code_suspects" :key="idx" class="table-row">
+                            <span class="fn-name">{{ dup.base_name }}*</span>
+                            <span>{{ dup.occurrence_count }}</span>
+                            <span class="severity-badge" :class="dup.severity">{{ dup.severity }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Types Tab -->
+                <div v-if="analysisTab === 'types'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading">Loading type analysis...</div>
+                  <div v-else-if="analysisDetail">
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_dynamic_functions }}</span><span class="stat-label">Dynamic Functions</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.with_type_hints }}</span><span class="stat-label">With Types</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.type_coverage_percentage }}%</span><span class="stat-label">Type Coverage</span></div>
+                    </div>
+                    <div v-if="analysisDetail.summary.total_dynamic_functions === 0" class="empty-state">No dynamically-typed functions to analyze.</div>
+                    <div v-else>
+                      <h3>Functions Without Type Hints</h3>
+                      <div v-if="analysisDetail.functions_without_type_hints.length === 0" class="empty-state success-state">All functions have type hints!</div>
+                      <div v-else class="analysis-table">
+                        <div class="table-header"><span>Function</span><span>File</span><span>Inferred Type</span></div>
+                        <div v-for="fn in analysisDetail.functions_without_type_hints.slice(0, 30)" :key="fn.id" class="table-row" @click="navigateToFunctionById(fn)">
+                          <span class="fn-name">{{ fn.symbol }}</span>
+                          <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                          <span class="type-inferred">{{ fn.inferred_return_type }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- API Surface Tab -->
+                <div v-if="analysisTab === 'api-surface'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading">Loading API surface analysis...</div>
+                  <div v-else-if="analysisDetail">
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.public_count }}</span><span class="stat-label">Public Functions</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.private_count }}</span><span class="stat-label">Private Functions</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.documentation_coverage }}%</span><span class="stat-label">API Doc Coverage</span></div>
+                    </div>
+                    <div v-if="analysisDetail.undocumented_public.length > 0">
+                      <h3>Undocumented Public Functions</h3>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>Function</span><span>File</span><span>Callers</span></div>
+                        <div v-for="fn in analysisDetail.undocumented_public.slice(0, 20)" :key="fn.id" class="table-row" @click="navigateToFunctionById(fn)">
+                          <span class="fn-name">{{ fn.symbol }}</span>
+                          <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                          <span>{{ fn.caller_count }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <h3>Entry Points</h3>
+                    <div v-if="analysisDetail.entry_points.length === 0" class="empty-state">No obvious entry points detected.</div>
+                    <div v-else class="analysis-table">
+                      <div class="table-header"><span>Function</span><span>File</span><span>Callers</span></div>
+                      <div v-for="fn in analysisDetail.entry_points" :key="fn.id" class="table-row" @click="navigateToFunctionById(fn)">
+                        <span class="fn-name">{{ fn.symbol }}</span>
+                        <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                        <span>{{ fn.caller_count }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Documentation Tab -->
+                <div v-if="analysisTab === 'documentation'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading">Loading documentation analysis...</div>
+                  <div v-else-if="analysisDetail">
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.coverage_percentage }}%</span><span class="stat-label">Doc Coverage</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.fully_documented }}</span><span class="stat-label">Documented</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.undocumented }}</span><span class="stat-label">Undocumented</span></div>
+                    </div>
+                    <h3>Documentation by File</h3>
+                    <div class="analysis-table">
+                      <div class="table-header"><span>File</span><span>Documented</span><span>Total</span><span>Coverage</span></div>
+                      <div v-for="file in analysisDetail.by_file.slice(0, 20)" :key="file.filename" class="table-row" :class="{ 'warning-row': file.coverage < 50 }">
+                        <span class="fn-file">{{ file.filename }}</span>
+                        <span>{{ file.documented }}</span>
+                        <span>{{ file.total }}</span>
+                        <span :class="{ 'low-coverage': file.coverage < 50 }">{{ file.coverage }}%</span>
+                      </div>
+                    </div>
+                    <div v-if="analysisDetail.undocumented.length > 0">
+                      <h3>Undocumented Functions</h3>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>Function</span><span>File</span></div>
+                        <div v-for="fn in analysisDetail.undocumented.slice(0, 30)" :key="fn.id" class="table-row" @click="navigateToFunctionById(fn)">
+                          <span class="fn-name">{{ fn.symbol }}</span>
+                          <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Variable Scope Tab -->
+                <div v-if="analysisTab === 'scope'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading">Loading scope analysis...</div>
+                  <div v-else-if="analysisDetail">
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_issues }}</span><span class="stat-label">Total Issues</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.global_variable_issues }}</span><span class="stat-label">Global Vars</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.shadowing_issues }}</span><span class="stat-label">Shadowing</span></div>
+                    </div>
+                    <div v-if="analysisDetail.summary.total_issues === 0" class="empty-state success-state">No variable scope issues detected!</div>
+                    <div v-else>
+                      <div v-if="analysisDetail.issues.global_variables.length > 0">
+                        <h3>Global Variable Usage</h3>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span></div>
+                          <div v-for="fn in analysisDetail.issues.global_variables" :key="fn.id" class="table-row" @click="navigateToFunctionById(fn)">
+                            <span class="fn-name">{{ fn.symbol }}</span>
+                            <span class="fn-file">{{ fn.filename }}:{{ fn.start_line }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div v-if="analysisDetail.issues.variable_shadowing.length > 0">
+                        <h3>Variable Shadowing</h3>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span><span>Variable</span></div>
+                          <div v-for="(issue, idx) in analysisDetail.issues.variable_shadowing" :key="idx" class="table-row" @click="navigateToFunctionById(issue)">
+                            <span class="fn-name">{{ issue.symbol }}</span>
+                            <span class="fn-file">{{ issue.filename }}:{{ issue.start_line }}</span>
+                            <span>{{ issue.variable }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Project View (no file or function selected) -->
             <div
-              v-if="selectedProject && !selectedFile && !selectedFunction && !showCallGraph && !showJobsView"
+              v-if="selectedProject && !selectedFile && !selectedFunction && !showCallGraph && !showJobsView && !showAnalysisView"
               class="card"
             >
               <h2>Project: {{ selectedProject.name }}</h2>
@@ -522,7 +1038,7 @@
 
             <!-- File View (file selected, no function) -->
             <div
-              v-if="selectedFile && !selectedFunction && !showCallGraph"
+              v-if="selectedFile && !selectedFunction && !showCallGraph && !showAnalysisView"
               class="card"
             >
               <div class="breadcrumb">
@@ -554,7 +1070,7 @@
 
             <!-- All Functions View -->
             <div
-              v-if="showingAllFunctions && !selectedFunction && !showCallGraph"
+              v-if="showingAllFunctions && !selectedFunction && !showCallGraph && !showAnalysisView"
               class="card"
             >
               <div class="breadcrumb">
@@ -591,7 +1107,7 @@
             </div>
 
             <!-- Function Detail View -->
-            <div v-if="selectedFunction && !showCallGraph" class="card">
+            <div v-if="selectedFunction && !showCallGraph && !showAnalysisView" class="card">
               <div class="breadcrumb">
                 <span class="breadcrumb-item" @click="clearFunction"
                   >{{ selectedProject?.name || 'Projects' }}</span
