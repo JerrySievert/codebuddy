@@ -3,3 +3,10 @@ node_modules/
 *.log
 .env
 config.json
+.migrations.json
+.claude/
+docs/
+calls.mjs
+client.mjs
+repomix-output.xml
+tree.mjs
