@@ -576,6 +576,22 @@
                       <span class="sidebar-icon">R</span>
                       <span class="sidebar-text">Resources</span>
                     </div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'patterns' }" @click="setAnalysisTab('patterns')">
+                      <span class="sidebar-icon">P</span>
+                      <span class="sidebar-text">Patterns</span>
+                    </div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'tests' }" @click="setAnalysisTab('tests')">
+                      <span class="sidebar-icon">T</span>
+                      <span class="sidebar-text">Tests</span>
+                    </div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'naming' }" @click="setAnalysisTab('naming')">
+                      <span class="sidebar-icon">N</span>
+                      <span class="sidebar-text">Naming</span>
+                    </div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'readability' }" @click="setAnalysisTab('readability')">
+                      <span class="sidebar-icon">R</span>
+                      <span class="sidebar-text">Readability</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1235,6 +1251,241 @@
                   </div>
                 </div>
 
+                <!-- Patterns Tab (On-demand) -->
+                <div v-if="analysisTab === 'patterns'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Analyzing design patterns...</div>
+                    <div class="loading-subtext">Detecting Singleton, Factory, Observer, and other patterns</div>
+                  </div>
+                  <div v-else-if="!analysisDetail" class="empty-state-container">
+                    <div class="empty-state-icon">P</div>
+                    <div class="empty-state-title">No Data Available</div>
+                    <div class="empty-state-message">Unable to load pattern analysis. Please try again.</div>
+                  </div>
+                  <div v-else-if="analysisDetail.summary.total_patterns === 0 && analysisDetail.summary.total_anti_patterns === 0" class="empty-state-container">
+                    <div class="empty-state-icon">P</div>
+                    <div class="empty-state-title">No Patterns Detected</div>
+                    <div class="empty-state-message">No common design patterns or anti-patterns were detected in this project.</div>
+                  </div>
+                  <div v-else>
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_patterns }}</span><span class="stat-label">Design Patterns</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_anti_patterns }}</span><span class="stat-label">Anti-Patterns</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.files_analyzed }}</span><span class="stat-label">Files Analyzed</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_error_handlers }}</span><span class="stat-label">Error Handlers</span></div>
+                    </div>
+
+                    <!-- Design Patterns -->
+                    <div v-if="analysisDetail.patterns && analysisDetail.patterns.length > 0" class="pattern-section">
+                      <h3>Design Patterns Detected</h3>
+                      <div v-for="pattern in analysisDetail.patterns" :key="pattern.name" class="pattern-group">
+                        <div class="pattern-group-header">
+                          <span class="pattern-type-badge pattern">{{ pattern.name }}</span>
+                          <span class="pattern-count">{{ pattern.occurrences.length }} occurrences</span>
+                        </div>
+                        <div v-if="pattern.description" class="pattern-description">{{ pattern.description }}</div>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>File</span><span>Line</span><span>Context</span></div>
+                          <div v-for="(occ, idx) in pattern.occurrences.slice(0, 10)" :key="idx" class="table-row">
+                            <span class="fn-file">{{ occ.filename }}</span>
+                            <span>{{ occ.line }}</span>
+                            <span class="pattern-context">{{ occ.context }}</span>
+                          </div>
+                          <div v-if="pattern.occurrences.length > 10" class="table-more">
+                            And {{ pattern.occurrences.length - 10 }} more...
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Anti-Patterns -->
+                    <div v-if="analysisDetail.anti_patterns && analysisDetail.anti_patterns.length > 0" class="pattern-section">
+                      <h3>Anti-Patterns Detected</h3>
+                      <div v-for="pattern in analysisDetail.anti_patterns" :key="pattern.name" class="pattern-group warning-group">
+                        <div class="pattern-group-header">
+                          <span class="pattern-type-badge anti-pattern">{{ pattern.name }}</span>
+                          <span class="pattern-count">{{ pattern.occurrences.length }} occurrences</span>
+                        </div>
+                        <div v-if="pattern.description" class="pattern-description">{{ pattern.description }}</div>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>File</span><span>Line</span><span>Context</span></div>
+                          <div v-for="(occ, idx) in pattern.occurrences.slice(0, 10)" :key="idx" class="table-row warning-row">
+                            <span class="fn-file">{{ occ.filename }}</span>
+                            <span>{{ occ.line }}</span>
+                            <span class="pattern-context">{{ occ.context }}</span>
+                          </div>
+                          <div v-if="pattern.occurrences.length > 10" class="table-more">
+                            And {{ pattern.occurrences.length - 10 }} more...
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Error Handling -->
+                    <div v-if="analysisDetail.error_handling" class="pattern-section">
+                      <h3>Error Handling Analysis</h3>
+                      <div class="analysis-stats-bar">
+                        <div class="stat-item"><span class="stat-value">{{ analysisDetail.error_handling.try_catch_blocks }}</span><span class="stat-label">Try/Catch</span></div>
+                        <div class="stat-item" :class="{ 'stat-warning': analysisDetail.error_handling.empty_catch_blocks > 0 }"><span class="stat-value">{{ analysisDetail.error_handling.empty_catch_blocks }}</span><span class="stat-label">Empty Catch</span></div>
+                        <div class="stat-item"><span class="stat-value">{{ analysisDetail.error_handling.finally_blocks }}</span><span class="stat-label">Finally Blocks</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tests Tab (On-demand) -->
+                <div v-if="analysisTab === 'tests'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Analyzing test coverage...</div>
+                    <div class="loading-subtext">Scanning for test files, assertions, and mocks</div>
+                  </div>
+                  <div v-else-if="!analysisDetail" class="empty-state-container">
+                    <div class="empty-state-icon">T</div>
+                    <div class="empty-state-title">No Data Available</div>
+                    <div class="empty-state-message">Unable to load test analysis. Please try again.</div>
+                  </div>
+                  <div v-else-if="analysisDetail.summary.test_file_count === 0" class="empty-state-container">
+                    <div class="empty-state-icon warning">!</div>
+                    <div class="empty-state-title">No Test Files Found</div>
+                    <div class="empty-state-message">This project doesn't appear to have any test files. Consider adding tests to improve code quality.</div>
+                  </div>
+                  <div v-else>
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.test_file_count }}</span><span class="stat-label">Test Files</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_assertions }}</span><span class="stat-label">Assertions</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_mocks }}</span><span class="stat-label">Mocks/Stubs</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.test_ratio }}%</span><span class="stat-label">Test Ratio</span></div>
+                    </div>
+
+                    <!-- Test Files -->
+                    <div v-if="analysisDetail.test_files && analysisDetail.test_files.length > 0" class="pattern-section">
+                      <h3>Test Files</h3>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>File</span><span>Assertions</span><span>Mocks</span><span>Framework</span></div>
+                        <div v-for="file in analysisDetail.test_files.slice(0, 20)" :key="file.filename" class="table-row">
+                          <span class="fn-file">{{ file.filename }}</span>
+                          <span>{{ file.assertion_count }}</span>
+                          <span>{{ file.mock_count }}</span>
+                          <span class="test-framework-badge">{{ file.framework || 'unknown' }}</span>
+                        </div>
+                        <div v-if="analysisDetail.test_files.length > 20" class="table-more">
+                          And {{ analysisDetail.test_files.length - 20 }} more...
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Coverage Gaps -->
+                    <div v-if="analysisDetail.coverage_gaps && analysisDetail.coverage_gaps.length > 0" class="pattern-section">
+                      <h3>Potential Coverage Gaps</h3>
+                      <div class="pattern-description">Source files that may not have corresponding test files.</div>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>Source File</span><span>Functions</span></div>
+                        <div v-for="gap in analysisDetail.coverage_gaps.slice(0, 15)" :key="gap.filename" class="table-row warning-row">
+                          <span class="fn-file">{{ gap.filename }}</span>
+                          <span>{{ gap.function_count }}</span>
+                        </div>
+                        <div v-if="analysisDetail.coverage_gaps.length > 15" class="table-more">
+                          And {{ analysisDetail.coverage_gaps.length - 15 }} more...
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Naming Tab (On-demand) -->
+                <div v-if="analysisTab === 'naming'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Analyzing naming conventions...</div>
+                    <div class="loading-subtext">Checking camelCase, snake_case, and PascalCase usage</div>
+                  </div>
+                  <div v-else-if="!analysisDetail" class="empty-state-container">
+                    <div class="empty-state-icon">N</div>
+                    <div class="empty-state-title">No Data Available</div>
+                    <div class="empty-state-message">Unable to load naming analysis. Please try again.</div>
+                  </div>
+                  <div v-else>
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_identifiers }}</span><span class="stat-label">Identifiers</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.consistency_score }}%</span><span class="stat-label">Consistency</span></div>
+                      <div class="stat-item" :class="{ 'stat-warning': analysisDetail.summary.violations > 0 }"><span class="stat-value">{{ analysisDetail.summary.violations }}</span><span class="stat-label">Violations</span></div>
+                    </div>
+
+                    <!-- Convention Breakdown -->
+                    <div v-if="analysisDetail.conventions" class="pattern-section">
+                      <h3>Convention Usage</h3>
+                      <div class="naming-conventions-grid">
+                        <div v-for="(count, convention) in analysisDetail.conventions" :key="convention" class="naming-convention-card">
+                          <div class="convention-name">{{ convention }}</div>
+                          <div class="convention-count">{{ count }}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Violations -->
+                    <div v-if="analysisDetail.violations && analysisDetail.violations.length > 0" class="pattern-section">
+                      <h3>Naming Violations</h3>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>Identifier</span><span>File</span><span>Expected</span><span>Actual</span></div>
+                        <div v-for="(violation, idx) in analysisDetail.violations.slice(0, 20)" :key="idx" class="table-row warning-row">
+                          <span class="fn-name">{{ violation.identifier }}</span>
+                          <span class="fn-file">{{ violation.filename }}:{{ violation.line }}</span>
+                          <span>{{ violation.expected_convention }}</span>
+                          <span>{{ violation.actual_convention }}</span>
+                        </div>
+                        <div v-if="analysisDetail.violations.length > 20" class="table-more">
+                          And {{ analysisDetail.violations.length - 20 }} more...
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Readability Tab (On-demand) -->
+                <div v-if="analysisTab === 'readability'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Calculating readability scores...</div>
+                    <div class="loading-subtext">Analyzing code structure, comments, and complexity</div>
+                  </div>
+                  <div v-else-if="!analysisDetail" class="empty-state-container">
+                    <div class="empty-state-icon">R</div>
+                    <div class="empty-state-title">No Data Available</div>
+                    <div class="empty-state-message">Unable to load readability analysis. Please try again.</div>
+                  </div>
+                  <div v-else>
+                    <div class="readability-score-card" :class="'readability-' + analysisDetail.summary.rating.toLowerCase()">
+                      <div class="readability-score">{{ analysisDetail.summary.average_score }}</div>
+                      <div class="readability-label">{{ analysisDetail.summary.rating }}</div>
+                    </div>
+
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.files_analyzed }}</span><span class="stat-label">Files</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.avg_comment_ratio }}%</span><span class="stat-label">Comment Ratio</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.avg_line_length }}</span><span class="stat-label">Avg Line Length</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.avg_nesting_depth }}</span><span class="stat-label">Avg Nesting</span></div>
+                    </div>
+
+                    <!-- Lowest Scoring Files -->
+                    <div v-if="analysisDetail.lowest_scoring && analysisDetail.lowest_scoring.length > 0" class="pattern-section">
+                      <h3>Files Needing Improvement</h3>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>File</span><span>Score</span><span>Issues</span></div>
+                        <div v-for="file in analysisDetail.lowest_scoring.slice(0, 15)" :key="file.filename" class="table-row" :class="{ 'warning-row': file.score < 50 }">
+                          <span class="fn-file">{{ file.filename }}</span>
+                          <span class="readability-file-score" :class="'score-' + (file.score >= 70 ? 'good' : file.score >= 50 ? 'fair' : 'poor')">{{ file.score }}</span>
+                          <span class="readability-issues">{{ file.issues.join(', ') }}</span>
+                        </div>
+                        <div v-if="analysisDetail.lowest_scoring.length > 15" class="table-more">
+                          And {{ analysisDetail.lowest_scoring.length - 15 }} more...
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </div>
             </div>
@@ -1318,13 +1569,65 @@
                 </div>
               </div>
 
-              <div class="action-bar">
-                <button class="btn-secondary" @click="showAllFunctions">
-                  Show All Entities
-                </button>
-                <button class="btn-primary" @click="openCallGraph('main')">
-                  View Call Graph (main)
-                </button>
+              <!-- Project Actions Menu -->
+              <div class="project-actions-grid">
+                <div class="actions-group">
+                  <h4>Browse</h4>
+                  <div class="actions-list">
+                    <button class="action-card" @click="showAllFunctions">
+                      <span class="action-icon">&#9776;</span>
+                      <span class="action-label">All Entities</span>
+                      <span class="action-desc">Browse all functions, classes, and structs</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="actions-group">
+                  <h4>Visualizations</h4>
+                  <div class="actions-list">
+                    <button class="action-card" @click="openCallGraph('main')">
+                      <span class="action-icon">&#9673;</span>
+                      <span class="action-label">Call Graph</span>
+                      <span class="action-desc">View function call relationships from main</span>
+                    </button>
+                    <button class="action-card" @click="openCallGraph('main'); switchGraphView('callers')">
+                      <span class="action-icon">&#8593;</span>
+                      <span class="action-label">Caller Tree</span>
+                      <span class="action-desc">See what calls a function</span>
+                    </button>
+                    <button class="action-card" @click="openCallGraph('main'); switchGraphView('callees')">
+                      <span class="action-icon">&#8595;</span>
+                      <span class="action-label">Callee Tree</span>
+                      <span class="action-desc">See what a function calls</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="actions-group">
+                  <h4>Code Analysis</h4>
+                  <div class="actions-list">
+                    <button class="action-card" @click="toggleAnalysisView">
+                      <span class="action-icon">&#9874;</span>
+                      <span class="action-label">Full Analysis</span>
+                      <span class="action-desc">Comprehensive code quality dashboard</span>
+                    </button>
+                    <button class="action-card" @click="toggleAnalysisView(); setAnalysisTab('security')">
+                      <span class="action-icon">!</span>
+                      <span class="action-label">Security Scan</span>
+                      <span class="action-desc">Detect potential vulnerabilities</span>
+                    </button>
+                    <button class="action-card" @click="toggleAnalysisView(); setAnalysisTab('patterns')">
+                      <span class="action-icon">P</span>
+                      <span class="action-label">Design Patterns</span>
+                      <span class="action-desc">Detect patterns and anti-patterns</span>
+                    </button>
+                    <button class="action-card" @click="toggleAnalysisView(); setAnalysisTab('tests')">
+                      <span class="action-icon">T</span>
+                      <span class="action-label">Test Analysis</span>
+                      <span class="action-desc">Analyze test coverage and quality</span>
+                    </button>
+                  </div>
+                </div>
               </div>
               <div class="detail-section">
                 <h3>
