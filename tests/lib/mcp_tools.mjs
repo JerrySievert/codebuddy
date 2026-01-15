@@ -53,7 +53,10 @@ await test('createMcpServer creates server with all expected tools', async (t) =
     'analysis_hierarchy',
     // Concurrency and resource analysis tools
     'analysis_concurrency',
-    'analysis_resources'
+    'analysis_resources',
+    // Naming and readability analysis tools
+    'analysis_naming',
+    'analysis_readability'
   ];
 
   for (const toolName of expectedNewTools) {
