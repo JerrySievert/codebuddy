@@ -1412,6 +1412,7 @@
                     {{ fn.symbol }}{{ fn.parameters || '' }}
                   </div>
                   <div class="function-location">
+                    <span class="language-badge" :class="'lang-' + fn.language">{{ fn.language }}</span>
                     {{ fn.filename }}:{{ fn.start_line }}
                   </div>
                 </div>
