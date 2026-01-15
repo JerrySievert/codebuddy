@@ -26,6 +26,7 @@ await test('createMcpServer creates server with all expected tools', async (t) =
   const expectedNewTools = [
     'entity_list',
     'entity_search',
+    'entity_references',
     'class_members',
     'function_call_graph',
     'function_control_flow',
@@ -39,7 +40,20 @@ await test('createMcpServer creates server with all expected tools', async (t) =
     'analysis_types',
     'analysis_api_surface',
     'analysis_documentation',
-    'analysis_scope'
+    'analysis_scope',
+    // Cross-reference tools
+    'symbol_references',
+    'go_to_definition',
+    'list_definitions',
+    'symbol_reference_summary',
+    'symbols_at_location',
+    // Class hierarchy tools
+    'class_hierarchy',
+    'interface_implementations',
+    'analysis_hierarchy',
+    // Concurrency and resource analysis tools
+    'analysis_concurrency',
+    'analysis_resources'
   ];
 
   for (const toolName of expectedNewTools) {

@@ -29,6 +29,11 @@ createApp({
     const loadingCallers = ref(false);
     const loadingCallees = ref(false);
 
+    // Entity references state (for struct/class)
+    const entityReferences = ref([]);
+    const referenceDefinitions = ref([]);
+    const loadingReferences = ref(false);
+
     // Call graph state
     const showCallGraph = ref(false);
     const callGraphRoot = ref('');
@@ -115,12 +120,27 @@ createApp({
         if (selectedFunction.value.filename) {
           params.set('funcFile', selectedFunction.value.filename);
         }
+        if (activeTab.value && activeTab.value !== 'source') {
+          params.set('tab', activeTab.value);
+        }
       }
       if (showCallGraph.value && callGraphRoot.value) {
         params.set('callgraph', callGraphRoot.value);
+        if (graphViewType.value && graphViewType.value !== 'callgraph') {
+          params.set('graphType', graphViewType.value);
+        }
       }
       if (showingAllFunctions.value) {
         params.set('view', 'all-functions');
+      }
+      if (showAnalysisView.value) {
+        params.set('view', 'analysis');
+        if (analysisTab.value && analysisTab.value !== 'overview') {
+          params.set('analysisTab', analysisTab.value);
+        }
+      }
+      if (showJobsView.value) {
+        params.set('view', 'jobs');
       }
       const hash = params.toString();
       const newUrl = hash ? `#${hash}` : window.location.pathname;
@@ -136,8 +156,18 @@ createApp({
       const fileName = params.get('file');
       const functionName = params.get('function');
       const funcFile = params.get('funcFile');
+      const tab = params.get('tab');
       const callgraphRoot = params.get('callgraph');
+      const graphType = params.get('graphType');
       const view = params.get('view');
+      const analysisTabParam = params.get('analysisTab');
+
+      // Handle jobs view (doesn't require project)
+      if (view === 'jobs') {
+        showJobsView.value = true;
+        showAnalysisView.value = false;
+        return;
+      }
 
       if (projectName) {
         // Wait for projects to load
@@ -150,8 +180,24 @@ createApp({
         if (project) {
           await selectProject(project, true); // true = skip URL update
 
-          if (callgraphRoot) {
+          // Handle analysis view
+          if (view === 'analysis') {
+            showAnalysisView.value = true;
+            showJobsView.value = false;
+            await loadAnalysisDashboard();
+            if (analysisTabParam) {
+              analysisTab.value = analysisTabParam;
+              // Load detail for non-overview tabs
+              if (analysisTabParam !== 'overview') {
+                await loadAnalysisDetail(analysisTabParam);
+              }
+            }
+          } else if (callgraphRoot) {
             await openCallGraph(callgraphRoot, true);
+            if (graphType) {
+              graphViewType.value = graphType;
+              await reloadTreeView();
+            }
           } else if (functionName) {
             // Load function details
             try {
@@ -166,6 +212,16 @@ createApp({
                   : results[0];
                 selectedFunction.value = match;
                 selectedFile.value = match.filename;
+                // Restore active tab if specified
+                if (tab) {
+                  activeTab.value = tab;
+                  // Trigger loading for tabs that need it
+                  if (tab === 'callers') await loadCallers();
+                  else if (tab === 'callees') await loadCallees();
+                  else if (tab === 'callgraph') await loadInlineCallGraph();
+                  else if (tab === 'flowchart') await loadFlowchart();
+                  else if (tab === 'references') await loadReferences();
+                }
               }
             } catch (e) {
               console.error('Failed to load function from URL:', e);
@@ -205,12 +261,22 @@ createApp({
       searchResults.value = [];
       hasSearched.value = false;
 
+      // Reset analysis data when switching projects
+      analysisData.value = null;
+      analysisDetail.value = null;
+      analysisTab.value = 'overview';
+
+      // Close analysis and jobs views when selecting a project
+      showAnalysisView.value = false;
+      showJobsView.value = false;
+
       try {
         const response = await fetch(`/api/v1/projects/${project.name}`);
         projectInfo.value = await response.json();
       } catch (error) {
         console.error('Failed to load project info:', error);
       }
+
       if (!skipUrlUpdate) updateUrl();
     };
 
@@ -405,6 +471,8 @@ createApp({
       callers.value = [];
       callees.value = [];
       classMembers.value = [];
+      entityReferences.value = [];
+      referenceDefinitions.value = [];
       flowchartData.value = null;
       flowchartError.value = '';
       inlineCallGraphData.value = null;
@@ -507,6 +575,106 @@ createApp({
       }
     };
 
+    // Load references for struct/class entities
+    const loadReferences = async () => {
+      if (!selectedFunction.value) return;
+      if (entityReferences.value.length > 0) return; // Already loaded
+
+      loadingReferences.value = true;
+
+      try {
+        // Load references to this entity
+        const projectName = selectedProject.value?.name;
+        if (!projectName) return;
+
+        const response = await fetch(
+          `/api/v1/entities/${encodeURIComponent(selectedFunction.value.symbol)}/references?project=${projectName}`
+        );
+        entityReferences.value = await response.json();
+
+        // Load all definitions of this struct/class across all projects
+        const defsResponse = await fetch(
+          `/api/v1/entities/definitions?name=${encodeURIComponent(selectedFunction.value.symbol)}`
+        );
+        referenceDefinitions.value = await defsResponse.json();
+      } catch (error) {
+        console.error('Failed to load references:', error);
+      } finally {
+        loadingReferences.value = false;
+      }
+    };
+
+    // Set active tab for function detail view and update URL
+    const setActiveTab = async (tab) => {
+      activeTab.value = tab;
+      // Trigger loading for tabs that need it
+      if (tab === 'callers') await loadCallers();
+      else if (tab === 'callees') await loadCallees();
+      else if (tab === 'callgraph') await loadInlineCallGraph();
+      else if (tab === 'flowchart') await loadFlowchart();
+      else if (tab === 'references') await loadReferences();
+      updateUrl();
+    };
+
+    // Group references by type for display
+    const groupedReferences = Vue.computed(() => {
+      if (!entityReferences.value || entityReferences.value.length === 0) {
+        return {};
+      }
+      const groups = {};
+      for (const ref of entityReferences.value) {
+        const type = ref.reference_type || 'unknown';
+        if (!groups[type]) {
+          groups[type] = [];
+        }
+        groups[type].push(ref);
+      }
+      return groups;
+    });
+
+    // Format reference type for display
+    const formatReferenceType = (type) => {
+      const typeLabels = {
+        'variable': 'Variable Declarations',
+        'parameter': 'Function Parameters',
+        'return_type': 'Return Types',
+        'field': 'Field Declarations',
+        'typedef': 'Type Definitions',
+        'macro': 'Macro Definitions',
+        'unknown': 'Other References'
+      };
+      return typeLabels[type] || type;
+    };
+
+    // Navigate to a definition (possibly in another project)
+    const navigateToDefinition = async (def) => {
+      // If definition is in a different project, switch to that project first
+      if (def.project_name && (!selectedProject.value || selectedProject.value.name !== def.project_name)) {
+        const project = projects.value.find(p => p.name === def.project_name);
+        if (project) {
+          await selectProject(project, true);
+        }
+      }
+
+      // Navigate to the entity
+      try {
+        const response = await fetch(
+          `/api/v1/functions/${encodeURIComponent(def.symbol)}?project=${def.project_name}`
+        );
+        const results = await response.json();
+        if (results.length > 0) {
+          const match = results.find(r => r.id === def.id) ||
+                        results.find(r => r.filename === def.filename && r.start_line === def.start_line) ||
+                        results[0];
+          await selectFunction(match, true);
+        }
+      } catch (error) {
+        console.error('Failed to navigate to definition:', error);
+      }
+
+      updateUrl();
+    };
+
     // Call Graph Functions
     const openCallGraph = async (functionName, skipUrlUpdate = false) => {
       callGraphRoot.value = functionName;
@@ -529,9 +697,16 @@ createApp({
         const response = await fetch(
           `/api/v1/functions/${encodeURIComponent(functionName)}/callgraph?project=${selectedProject.value.name}&depth=3`
         );
-        callGraphData.value = await response.json();
+        const data = await response.json();
+        if (!response.ok) {
+          // API returned an error - store it so we can show an appropriate message
+          callGraphData.value = { error: data.error || 'Failed to load call graph', notFound: response.status === 404 };
+        } else {
+          callGraphData.value = data;
+        }
       } catch (error) {
         console.error('Failed to load call graph:', error);
+        callGraphData.value = { error: error.message };
       } finally {
         loadingCallGraph.value = false;
         // Wait for Vue to render the DOM, then render the graph
@@ -572,6 +747,7 @@ createApp({
     const loadTreeView = async (functionName, viewType) => {
       loadingCallGraph.value = true;
       treeData.value = null;
+      callGraphData.value = null;
       selectedGraphNode.value = null;
 
       const endpoint = viewType === 'callers' ? 'caller-tree' : 'callee-tree';
@@ -580,9 +756,15 @@ createApp({
         const response = await fetch(
           `/api/v1/functions/${encodeURIComponent(functionName)}/${endpoint}?project=${selectedProject.value.name}&depth=${treeDepth.value}`
         );
-        treeData.value = await response.json();
+        const data = await response.json();
+        if (!response.ok) {
+          callGraphData.value = { error: data.error || 'Failed to load tree', notFound: response.status === 404 };
+        } else {
+          treeData.value = data;
+        }
       } catch (error) {
         console.error('Failed to load tree:', error);
+        callGraphData.value = { error: error.message };
       } finally {
         loadingCallGraph.value = false;
         await nextTick();
@@ -1453,9 +1635,15 @@ createApp({
         .attr('d', 'M 0,-5 L 10,0 L 0,5')
         .attr('class', 'graph-arrow');
 
-      const nodes = callGraphData.value.nodes;
-      const edges = callGraphData.value.edges;
+      const nodes = callGraphData.value.nodes || [];
+      const edges = callGraphData.value.edges || [];
       const rootId = callGraphData.value.root;
+
+      // Abort if no data to render
+      if (nodes.length === 0) {
+        console.log('No nodes to render');
+        return;
+      }
 
       // Create links
       const links = edges
@@ -1714,6 +1902,7 @@ createApp({
         await loadJobQueue();
         startJobPolling();
       }
+      updateUrl();
     };
 
     // Analysis view functions
@@ -1733,6 +1922,7 @@ createApp({
         // Load analysis data
         await loadAnalysisDashboard();
       }
+      updateUrl();
     };
 
     const closeAnalysisView = () => {
@@ -1740,6 +1930,7 @@ createApp({
       analysisData.value = null;
       analysisDetail.value = null;
       analysisTab.value = 'overview';
+      updateUrl();
     };
 
     const loadAnalysisDashboard = async () => {
@@ -1762,7 +1953,7 @@ createApp({
       }
     };
 
-    const loadAnalysisDetail = async (type) => {
+    const loadAnalysisDetail = async (type, skipUrlUpdate = false) => {
       if (!selectedProject.value) return;
 
       loadingAnalysisDetail.value = true;
@@ -1777,6 +1968,18 @@ createApp({
         console.error(`Failed to load ${type} analysis:`, error);
       } finally {
         loadingAnalysisDetail.value = false;
+      }
+
+      if (!skipUrlUpdate) updateUrl();
+    };
+
+    const setAnalysisTab = async (tab) => {
+      analysisTab.value = tab;
+      if (tab !== 'overview') {
+        await loadAnalysisDetail(tab);
+      } else {
+        analysisDetail.value = null;
+        updateUrl();
       }
     };
 
@@ -1988,6 +2191,7 @@ createApp({
       loadingAllFunctions,
       selectedFunction,
       activeTab,
+      setActiveTab,
       classMembers,
       loadingClassMembers,
       callers,
@@ -2031,6 +2235,13 @@ createApp({
       navigateToFunction,
       loadCallers,
       loadCallees,
+      entityReferences,
+      referenceDefinitions,
+      loadingReferences,
+      loadReferences,
+      groupedReferences,
+      formatReferenceType,
+      navigateToDefinition,
       openCallGraph,
       loadCallGraphForNode,
       closeCallGraph,
@@ -2086,6 +2297,7 @@ createApp({
       closeAnalysisView,
       loadAnalysisDashboard,
       loadAnalysisDetail,
+      setAnalysisTab,
       navigateToFunctionById
     };
   }

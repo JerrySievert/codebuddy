@@ -10,6 +10,8 @@ import { test } from 'st';
 // Import route handlers
 import { list as entityList } from '../../lib/api/v1/entities/list.mjs';
 import { search as entitySearch } from '../../lib/api/v1/entities/search.mjs';
+import { references as entityReferences } from '../../lib/api/v1/entities/references.mjs';
+import { definitions as entityDefinitions } from '../../lib/api/v1/entities/definitions.mjs';
 import { read as sourcecodeRead } from '../../lib/api/v1/sourcecode/read.mjs';
 
 // Mock response toolkit for Hapi.js
@@ -74,6 +76,50 @@ await test('entity search route requires name parameter', async (t) => {
 await test('entity search route has correct path', async (t) => {
   t.assert.eq(entitySearch.path, '/api/v1/entities/search', 'Should have correct path');
   t.assert.eq(entitySearch.method, 'GET', 'Should be GET method');
+});
+
+// ============ Entity References Route Tests ============
+
+await test('entity references route requires project parameter', async (t) => {
+  const h = createMockH();
+  const request = { params: { name: 'TestStruct' }, query: {} };
+
+  const result = await entityReferences.handler(request, h);
+
+  t.assert.eq(result.statusCode, 400, 'Should return 400 status');
+  t.assert.eq(result.responseData.error, 'project query parameter is required', 'Should return error message');
+});
+
+await test('entity references route returns 404 for non-existent project', async (t) => {
+  const h = createMockH();
+  const request = { params: { name: 'TestStruct' }, query: { project: 'non_existent_project_xyz123' } };
+
+  const result = await entityReferences.handler(request, h);
+
+  t.assert.eq(result.statusCode, 404, 'Should return 404 status');
+  t.assert.eq(result.responseData.error.includes('not found'), true, 'Should mention not found');
+});
+
+await test('entity references route has correct path', async (t) => {
+  t.assert.eq(entityReferences.path, '/api/v1/entities/{name}/references', 'Should have correct path');
+  t.assert.eq(entityReferences.method, 'GET', 'Should be GET method');
+});
+
+// ============ Entity Definitions Route Tests ============
+
+await test('entity definitions route requires name parameter', async (t) => {
+  const h = createMockH();
+  const request = { query: {} };
+
+  const result = await entityDefinitions.handler(request, h);
+
+  t.assert.eq(result.statusCode, 400, 'Should return 400 status');
+  t.assert.eq(result.responseData.error, 'name query parameter is required', 'Should return error message');
+});
+
+await test('entity definitions route has correct path', async (t) => {
+  t.assert.eq(entityDefinitions.path, '/api/v1/entities/definitions', 'Should have correct path');
+  t.assert.eq(entityDefinitions.method, 'GET', 'Should be GET method');
 });
 
 // ============ Sourcecode Read Route Tests ============

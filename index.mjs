@@ -15,9 +15,22 @@ import {
   get_entities_by_caller_id,
   get_entities_by_callee_id
 } from './lib/model/relationship.mjs';
+import { get_references_by_symbol } from './lib/model/reference.mjs';
 import { get_sourcecode } from './lib/model/sourcecode.mjs';
 import { text_at_position } from './lib/sourcecode.mjs';
 import { get_project_by_name } from './lib/model/project.mjs';
+import {
+  find_all_references,
+  go_to_definition,
+  list_definitions,
+  get_symbol_reference_summary,
+  find_symbols_at_location,
+  get_class_hierarchy,
+  find_implementations,
+  analyze_class_hierarchy,
+  analyze_project_concurrency,
+  analyze_project_resources
+} from './lib/analysis.mjs';
 
 import { tools } from './lib/strings.mjs';
 
@@ -530,6 +543,336 @@ server.tool(
     } catch (err) {
       return {
         content: [{ type: 'text', text: `Error ${err}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  tools[`entity_references`].name,
+  tools[`entity_references`].description,
+  {
+    name: z.string().describe('Name of the struct or class to find references for'),
+    project: z.string().describe('Project name'),
+    type: z
+      .string()
+      .optional()
+      .describe('Filter by reference type (variable, parameter, field, typedef, macro)')
+  },
+  async ({ name, project, type }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const references = await get_references_by_symbol({
+        symbol: name,
+        project_id: projects[0].id,
+        reference_type: type
+      });
+
+      if (references.length === 0) {
+        return {
+          content: [{ type: 'text', text: `No references found for '${name}'` }]
+        };
+      }
+
+      return {
+        content: [{ type: 'text', text: JSON.stringify(references) }]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error ${err}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Cross-reference: Find all references to a symbol
+server.tool(
+  'symbol_references',
+  `Finds all references to a symbol (function, class, variable, etc.) in a project. Returns all occurrences with context.`,
+  {
+    project: z.string().describe('Project name'),
+    symbol: z.string().describe('Symbol name to find references for'),
+    filename: z.string().optional().describe('Filter by filename'),
+    definitions_only: z.boolean().optional().default(false).describe('Only return definitions')
+  },
+  async ({ project, symbol, filename, definitions_only }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const result = await find_all_references(projects[0].id, symbol, {
+        filename,
+        definitions_only
+      });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Cross-reference: Go to definition
+server.tool(
+  'go_to_definition',
+  `Finds the definition of a symbol. Returns the location where the symbol is defined.`,
+  {
+    project: z.string().describe('Project name'),
+    symbol: z.string().describe('Symbol name to find definition for'),
+    filename: z.string().optional().describe('File where the reference is (for context)'),
+    line: z.number().optional().describe('Line where the reference is (for context)')
+  },
+  async ({ project, symbol, filename, line }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const result = await go_to_definition(projects[0].id, symbol, { filename, line });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Cross-reference: List all definitions
+server.tool(
+  'list_definitions',
+  `Lists all symbol definitions in a project, optionally filtered by type.`,
+  {
+    project: z.string().describe('Project name'),
+    type: z.string().optional().describe('Filter by symbol type (function, class, variable, parameter, etc.)')
+  },
+  async ({ project, type }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const result = await list_definitions(projects[0].id, { symbol_type: type });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Cross-reference: Symbol reference summary
+server.tool(
+  'symbol_reference_summary',
+  `Returns a summary of symbol references in a project, showing which symbols are most referenced.`,
+  {
+    project: z.string().describe('Project name')
+  },
+  async ({ project }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const result = await get_symbol_reference_summary(projects[0].id);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Cross-reference: Symbols at location
+server.tool(
+  'symbols_at_location',
+  `Finds symbols at a specific location in a file. Useful for hover functionality.`,
+  {
+    project: z.string().describe('Project name'),
+    filename: z.string().describe('Filename'),
+    line: z.number().describe('Line number'),
+    column: z.number().optional().describe('Column number for precise matching')
+  },
+  async ({ project, filename, line, column }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const result = await find_symbols_at_location(projects[0].id, filename, line, column);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Class hierarchy: Get hierarchy tree for a class
+server.tool(
+  'class_hierarchy',
+  `Gets the inheritance hierarchy tree for a class or struct. Can traverse up (parents/ancestors), down (children/descendants), or both.`,
+  {
+    project: z.string().describe('Project name'),
+    symbol: z.string().describe('Class or struct symbol name'),
+    direction: z.enum(['up', 'down', 'both']).optional().default('both').describe('Direction to traverse: up (ancestors), down (descendants), or both'),
+    max_depth: z.number().optional().default(10).describe('Maximum depth to traverse')
+  },
+  async ({ project, symbol, direction, max_depth }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const result = await get_class_hierarchy(projects[0].id, symbol, { direction, max_depth });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Class hierarchy: Find implementations
+server.tool(
+  'interface_implementations',
+  `Finds all classes that implement a specific interface or extend a class.`,
+  {
+    project: z.string().describe('Project name'),
+    symbol: z.string().describe('Interface or base class symbol name')
+  },
+  async ({ project, symbol }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const result = await find_implementations(projects[0].id, symbol);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Class hierarchy: Full project hierarchy analysis
+server.tool(
+  'analysis_hierarchy',
+  `Analyzes the complete class hierarchy of a project. Shows inheritance relationships, root classes, leaf classes, and depth statistics.`,
+  {
+    project: z.string().describe('Project name')
+  },
+  async ({ project }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const result = await analyze_class_hierarchy(projects[0].id);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Concurrency analysis
+server.tool(
+  'analysis_concurrency',
+  `Analyzes concurrency patterns in a project. Detects async/await, threads, locks, synchronization primitives, and potential race conditions.`,
+  {
+    project: z.string().describe('Project name')
+  },
+  async ({ project }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const result = await analyze_project_concurrency(projects[0].id);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Resource analysis
+server.tool(
+  'analysis_resources',
+  `Analyzes memory and resource management patterns in a project. Detects resource acquisition/release, smart pointers, RAII patterns, and potential resource leaks.`,
+  {
+    project: z.string().describe('Project name')
+  },
+  async ({ project }) => {
+    try {
+      const projects = await get_project_by_name({ name: project });
+      if (projects.length === 0) {
+        throw new Error(`Project '${project}' not found`);
+      }
+
+      const result = await analyze_project_resources(projects[0].id);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }]
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Error: ${err.message}` }],
         isError: true
       };
     }

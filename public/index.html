@@ -221,6 +221,56 @@
               <div v-if="loadingCallGraph" class="loading">
                 Loading {{ graphViewType === 'callgraph' ? 'call graph' : 'tree' }}...
               </div>
+              <!-- Error state: function not found -->
+              <div v-else-if="callGraphData && callGraphData.error" class="empty-state-container">
+                <div class="empty-state-icon error">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                  </svg>
+                </div>
+                <div class="empty-state-title" v-if="callGraphData.notFound">Function Not Found</div>
+                <div class="empty-state-title" v-else>Error Loading Graph</div>
+                <div class="empty-state-message" v-if="callGraphData.notFound">
+                  The function <strong>{{ callGraphRoot }}</strong> does not exist in this project.
+                  <span v-if="callGraphRoot === 'main'">This project may not have a main entry point, or it may use a different naming convention.</span>
+                </div>
+                <div class="empty-state-message" v-else>
+                  {{ callGraphData.error }}
+                </div>
+              </div>
+              <!-- Empty state: no graph data (call graph mode) -->
+              <div v-else-if="graphViewType === 'callgraph' && callGraphData && (!callGraphData.nodes || callGraphData.nodes.length === 0)" class="empty-state-container">
+                <div class="empty-state-icon warning">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
+                </div>
+                <div class="empty-state-title">No Call Graph Data</div>
+                <div class="empty-state-message">
+                  This function has no calls to or from other functions in the project.
+                </div>
+              </div>
+              <!-- Empty state: no tree data (caller/callee tree mode) -->
+              <div v-else-if="graphViewType !== 'callgraph' && treeData && (!treeData.callers || treeData.callers.length === 0) && (!treeData.callees || treeData.callees.length === 0)" class="empty-state-container">
+                <div class="empty-state-icon warning">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
+                </div>
+                <div class="empty-state-title">No {{ graphViewType === 'callers' ? 'Callers' : 'Callees' }} Found</div>
+                <div class="empty-state-message" v-if="graphViewType === 'callers'">
+                  No functions in this project call <strong>{{ callGraphRoot }}</strong>.
+                </div>
+                <div class="empty-state-message" v-else>
+                  <strong>{{ callGraphRoot }}</strong> does not call any other functions in this project.
+                </div>
+              </div>
               <div v-else class="graph-container" ref="graphContainer">
                 <div class="graph-controls">
                   <button @click="zoomIn">Zoom In</button>
@@ -426,151 +476,185 @@
             </div>
 
             <!-- Analysis View -->
-            <div v-if="showAnalysisView && selectedProject" class="card analysis-dashboard">
-              <div class="breadcrumb">
-                <span class="breadcrumb-item" @click="closeAnalysisView">{{ selectedProject.name }}</span>
-                <span class="breadcrumb-separator">›</span>
-                <span class="breadcrumb-current">Code Analysis</span>
-              </div>
-
-              <h2>Code Analysis Dashboard</h2>
-
+            <div v-if="showAnalysisView && selectedProject" class="analysis-dashboard">
               <!-- Loading State -->
-              <div v-if="loadingAnalysis" class="loading">Loading analysis...</div>
+              <div v-if="loadingAnalysis" class="card loading">Loading analysis...</div>
 
-              <!-- Analysis Dashboard -->
-              <div v-else-if="analysisData">
-                <!-- Health Score Card -->
-                <div class="health-score-card" :class="'health-' + analysisData.health_rating.toLowerCase()">
-                  <div class="health-score-circle">
-                    <span class="health-score-value">{{ analysisData.health_score }}</span>
-                    <span class="health-score-label">Health</span>
+              <!-- Analysis Dashboard with Sidebar -->
+              <div v-else-if="analysisData" class="analysis-layout">
+                <!-- Sidebar Navigation -->
+                <div class="analysis-sidebar">
+                  <!-- Health Score -->
+                  <div class="sidebar-health" :class="'health-' + analysisData.health_rating.toLowerCase()">
+                    <div class="health-score">{{ analysisData.health_score }}</div>
+                    <div class="health-label">{{ analysisData.health_rating }}</div>
                   </div>
-                  <div class="health-score-info">
-                    <div class="health-rating">{{ analysisData.health_rating }}</div>
-                    <div class="health-description">Overall code quality score based on multiple analysis factors</div>
+
+                  <!-- Overview -->
+                  <div class="sidebar-item" :class="{ active: analysisTab === 'overview' }" @click="setAnalysisTab('overview')">
+                    <span class="sidebar-icon">&#9776;</span>
+                    <span class="sidebar-text">Overview</span>
                   </div>
-                </div>
 
-                <!-- Analysis Tabs -->
-                <div class="analysis-tabs">
-                  <button class="analysis-tab" :class="{ active: analysisTab === 'overview' }" @click="analysisTab = 'overview'">Overview</button>
-                  <button class="analysis-tab" :class="{ active: analysisTab === 'metrics' }" @click="analysisTab = 'metrics'; loadAnalysisDetail('metrics')">Metrics</button>
-                  <button class="analysis-tab" :class="{ active: analysisTab === 'dead-code' }" @click="analysisTab = 'dead-code'; loadAnalysisDetail('dead-code')">Dead Code</button>
-                  <button class="analysis-tab" :class="{ active: analysisTab === 'duplication' }" @click="analysisTab = 'duplication'; loadAnalysisDetail('duplication')">Duplication</button>
-                  <button class="analysis-tab" :class="{ active: analysisTab === 'dependencies' }" @click="analysisTab = 'dependencies'; loadAnalysisDetail('dependencies')">Dependencies</button>
-                  <button class="analysis-tab" :class="{ active: analysisTab === 'security' }" @click="analysisTab = 'security'; loadAnalysisDetail('security')">Security</button>
-                  <button class="analysis-tab" :class="{ active: analysisTab === 'code-smells' }" @click="analysisTab = 'code-smells'; loadAnalysisDetail('code-smells')">Code Smells</button>
-                  <button class="analysis-tab" :class="{ active: analysisTab === 'types' }" @click="analysisTab = 'types'; loadAnalysisDetail('types')">Types</button>
-                  <button class="analysis-tab" :class="{ active: analysisTab === 'api-surface' }" @click="analysisTab = 'api-surface'; loadAnalysisDetail('api-surface')">API Surface</button>
-                  <button class="analysis-tab" :class="{ active: analysisTab === 'documentation' }" @click="analysisTab = 'documentation'; loadAnalysisDetail('documentation')">Documentation</button>
-                  <button class="analysis-tab" :class="{ active: analysisTab === 'scope' }" @click="analysisTab = 'scope'; loadAnalysisDetail('scope')">Variable Scope</button>
-                </div>
-
-                <!-- Overview Tab -->
-                <div v-if="analysisTab === 'overview'" class="analysis-content">
-                  <div class="analysis-summary-grid">
-                    <!-- Metrics Summary -->
-                    <div class="analysis-summary-card" @click="analysisTab = 'metrics'; loadAnalysisDetail('metrics')">
-                      <div class="summary-icon metrics-icon">M</div>
-                      <div class="summary-info">
-                        <div class="summary-title">Code Metrics</div>
-                        <div class="summary-stat">{{ analysisData.summaries.metrics.total_functions }} functions</div>
-                        <div class="summary-detail">Maintainability: {{ analysisData.summaries.metrics.maintainability_rating }}</div>
-                      </div>
+                  <!-- Code Quality Group -->
+                  <div class="sidebar-group">
+                    <div class="sidebar-group-title">Code Quality</div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'metrics' }" @click="setAnalysisTab('metrics')">
+                      <span class="sidebar-icon">M</span>
+                      <span class="sidebar-text">Metrics</span>
+                      <span class="sidebar-badge">{{ analysisData.summaries.metrics.maintainability_rating }}</span>
                     </div>
-
-                    <!-- Dead Code Summary -->
-                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.dead_code.dead_function_count > 0 }" @click="analysisTab = 'dead-code'; loadAnalysisDetail('dead-code')">
-                      <div class="summary-icon dead-code-icon">D</div>
-                      <div class="summary-info">
-                        <div class="summary-title">Dead Code</div>
-                        <div class="summary-stat">{{ analysisData.summaries.dead_code.dead_function_count }} unused functions</div>
-                        <div class="summary-detail">{{ analysisData.summaries.dead_code.dead_code_percentage }}% dead code</div>
-                      </div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'code-smells', 'has-issues': analysisData.summaries.code_smells.total_smells > 0 }" @click="setAnalysisTab('code-smells')">
+                      <span class="sidebar-icon">~</span>
+                      <span class="sidebar-text">Code Smells</span>
+                      <span v-if="analysisData.summaries.code_smells.total_smells > 0" class="sidebar-badge warning">{{ analysisData.summaries.code_smells.total_smells }}</span>
                     </div>
-
-                    <!-- Duplication Summary -->
-                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.duplication.duplicate_group_count > 0 }" @click="analysisTab = 'duplication'; loadAnalysisDetail('duplication')">
-                      <div class="summary-icon duplication-icon">2x</div>
-                      <div class="summary-info">
-                        <div class="summary-title">Code Duplication</div>
-                        <div class="summary-stat">{{ analysisData.summaries.duplication.duplicate_group_count }} duplicate groups</div>
-                        <div class="summary-detail">{{ analysisData.summaries.duplication.duplication_percentage }}% duplicated</div>
-                      </div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'duplication', 'has-issues': analysisData.summaries.duplication.duplicate_group_count > 0 }" @click="setAnalysisTab('duplication')">
+                      <span class="sidebar-icon">2x</span>
+                      <span class="sidebar-text">Duplication</span>
+                      <span v-if="analysisData.summaries.duplication.duplicate_group_count > 0" class="sidebar-badge warning">{{ analysisData.summaries.duplication.duplicate_group_count }}</span>
                     </div>
+                  </div>
 
-                    <!-- Dependencies Summary -->
-                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.dependencies.circular_dependency_count > 0 }" @click="analysisTab = 'dependencies'; loadAnalysisDetail('dependencies')">
-                      <div class="summary-icon deps-icon">&#8644;</div>
-                      <div class="summary-info">
-                        <div class="summary-title">Dependencies</div>
-                        <div class="summary-stat">{{ analysisData.summaries.dependencies.total_dependencies }} dependencies</div>
-                        <div class="summary-detail">{{ analysisData.summaries.dependencies.circular_dependency_count }} circular</div>
-                      </div>
+                  <!-- Security Group -->
+                  <div class="sidebar-group">
+                    <div class="sidebar-group-title">Security</div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'security', 'has-issues': analysisData.summaries.security.total_vulnerabilities > 0, 'has-critical': analysisData.summaries.security.high_severity > 0 }" @click="setAnalysisTab('security')">
+                      <span class="sidebar-icon">!</span>
+                      <span class="sidebar-text">Vulnerabilities</span>
+                      <span v-if="analysisData.summaries.security.total_vulnerabilities > 0" class="sidebar-badge" :class="{ 'critical': analysisData.summaries.security.high_severity > 0, 'warning': analysisData.summaries.security.high_severity === 0 }">{{ analysisData.summaries.security.total_vulnerabilities }}</span>
                     </div>
+                  </div>
 
-                    <!-- Security Summary -->
-                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.security.total_vulnerabilities > 0, 'has-critical': analysisData.summaries.security.high_severity > 0 }" @click="analysisTab = 'security'; loadAnalysisDetail('security')">
-                      <div class="summary-icon security-icon">!</div>
-                      <div class="summary-info">
-                        <div class="summary-title">Security</div>
-                        <div class="summary-stat">{{ analysisData.summaries.security.total_vulnerabilities }} issues found</div>
-                        <div class="summary-detail">{{ analysisData.summaries.security.high_severity }} high severity</div>
-                      </div>
+                  <!-- Structure Group -->
+                  <div class="sidebar-group">
+                    <div class="sidebar-group-title">Structure</div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'dead-code', 'has-issues': analysisData.summaries.dead_code.dead_function_count > 0 }" @click="setAnalysisTab('dead-code')">
+                      <span class="sidebar-icon">D</span>
+                      <span class="sidebar-text">Dead Code</span>
+                      <span v-if="analysisData.summaries.dead_code.dead_function_count > 0" class="sidebar-badge warning">{{ analysisData.summaries.dead_code.dead_function_count }}</span>
                     </div>
-
-                    <!-- Code Smells Summary -->
-                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.code_smells.total_smells > 0 }" @click="analysisTab = 'code-smells'; loadAnalysisDetail('code-smells')">
-                      <div class="summary-icon smells-icon">~</div>
-                      <div class="summary-info">
-                        <div class="summary-title">Code Smells</div>
-                        <div class="summary-stat">{{ analysisData.summaries.code_smells.total_smells }} smells detected</div>
-                        <div class="summary-detail">{{ analysisData.summaries.code_smells.smell_density }}% smell density</div>
-                      </div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'dependencies', 'has-issues': analysisData.summaries.dependencies.circular_dependency_count > 0 }" @click="setAnalysisTab('dependencies')">
+                      <span class="sidebar-icon">&#8644;</span>
+                      <span class="sidebar-text">Dependencies</span>
+                      <span v-if="analysisData.summaries.dependencies.circular_dependency_count > 0" class="sidebar-badge warning">{{ analysisData.summaries.dependencies.circular_dependency_count }}</span>
                     </div>
-
-                    <!-- Types Summary -->
-                    <div class="analysis-summary-card" @click="analysisTab = 'types'; loadAnalysisDetail('types')">
-                      <div class="summary-icon types-icon">T</div>
-                      <div class="summary-info">
-                        <div class="summary-title">Type Analysis</div>
-                        <div class="summary-stat">{{ analysisData.summaries.types.total_dynamic_functions }} dynamic functions</div>
-                        <div class="summary-detail">{{ analysisData.summaries.types.type_coverage_percentage }}% type coverage</div>
-                      </div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'api-surface' }" @click="setAnalysisTab('api-surface')">
+                      <span class="sidebar-icon">API</span>
+                      <span class="sidebar-text">API Surface</span>
                     </div>
+                  </div>
 
-                    <!-- API Surface Summary -->
-                    <div class="analysis-summary-card" @click="analysisTab = 'api-surface'; loadAnalysisDetail('api-surface')">
-                      <div class="summary-icon api-icon">API</div>
-                      <div class="summary-info">
-                        <div class="summary-title">API Surface</div>
-                        <div class="summary-stat">{{ analysisData.summaries.api_surface.public_count }} public functions</div>
-                        <div class="summary-detail">{{ analysisData.summaries.api_surface.documentation_coverage }}% documented</div>
-                      </div>
+                  <!-- Types & Docs Group -->
+                  <div class="sidebar-group">
+                    <div class="sidebar-group-title">Types & Docs</div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'types' }" @click="setAnalysisTab('types')">
+                      <span class="sidebar-icon">T</span>
+                      <span class="sidebar-text">Type Analysis</span>
+                      <span class="sidebar-badge">{{ analysisData.summaries.types.type_coverage_percentage }}%</span>
                     </div>
-
-                    <!-- Documentation Summary -->
-                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.documentation.coverage_percentage < 50 }" @click="analysisTab = 'documentation'; loadAnalysisDetail('documentation')">
-                      <div class="summary-icon docs-icon">D</div>
-                      <div class="summary-info">
-                        <div class="summary-title">Documentation</div>
-                        <div class="summary-stat">{{ analysisData.summaries.documentation.coverage_percentage }}% coverage</div>
-                        <div class="summary-detail">{{ analysisData.summaries.documentation.undocumented }} undocumented</div>
-                      </div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'documentation', 'has-issues': analysisData.summaries.documentation.coverage_percentage < 50 }" @click="setAnalysisTab('documentation')">
+                      <span class="sidebar-icon">D</span>
+                      <span class="sidebar-text">Documentation</span>
+                      <span class="sidebar-badge" :class="{ 'warning': analysisData.summaries.documentation.coverage_percentage < 50 }">{{ analysisData.summaries.documentation.coverage_percentage }}%</span>
                     </div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'scope', 'has-issues': analysisData.summaries.scope.total_issues > 0 }" @click="setAnalysisTab('scope')">
+                      <span class="sidebar-icon">{}</span>
+                      <span class="sidebar-text">Variable Scope</span>
+                      <span v-if="analysisData.summaries.scope.total_issues > 0" class="sidebar-badge warning">{{ analysisData.summaries.scope.total_issues }}</span>
+                    </div>
+                  </div>
 
-                    <!-- Variable Scope Summary -->
-                    <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.scope.total_issues > 0 }" @click="analysisTab = 'scope'; loadAnalysisDetail('scope')">
-                      <div class="summary-icon scope-icon">{}</div>
-                      <div class="summary-info">
-                        <div class="summary-title">Variable Scope</div>
-                        <div class="summary-stat">{{ analysisData.summaries.scope.total_issues }} issues</div>
-                        <div class="summary-detail">{{ analysisData.summaries.scope.global_variable_issues }} global vars</div>
-                      </div>
+                  <!-- Advanced Group -->
+                  <div class="sidebar-group">
+                    <div class="sidebar-group-title">Advanced</div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'concurrency' }" @click="setAnalysisTab('concurrency')">
+                      <span class="sidebar-icon">||</span>
+                      <span class="sidebar-text">Concurrency</span>
+                    </div>
+                    <div class="sidebar-item" :class="{ active: analysisTab === 'resources' }" @click="setAnalysisTab('resources')">
+                      <span class="sidebar-icon">R</span>
+                      <span class="sidebar-text">Resources</span>
                     </div>
                   </div>
                 </div>
+
+                <!-- Main Content Area -->
+                <div class="analysis-main">
+                  <div class="analysis-header">
+                    <div class="breadcrumb">
+                      <span class="breadcrumb-item" @click="closeAnalysisView">{{ selectedProject.name }}</span>
+                      <span class="breadcrumb-separator">›</span>
+                      <span class="breadcrumb-current">Code Analysis</span>
+                    </div>
+                  </div>
+
+                  <!-- Overview Tab -->
+                  <div v-if="analysisTab === 'overview'" class="analysis-content">
+                    <h2>Analysis Overview</h2>
+                    <p class="overview-description">Overall code quality score based on multiple analysis factors.</p>
+                    <div class="analysis-summary-grid">
+                      <!-- Metrics Summary -->
+                      <div class="analysis-summary-card" @click="setAnalysisTab('metrics')">
+                        <div class="summary-icon metrics-icon">M</div>
+                        <div class="summary-info">
+                          <div class="summary-title">Code Metrics</div>
+                          <div class="summary-stat">{{ analysisData.summaries.metrics.total_functions }} functions</div>
+                          <div class="summary-detail">Maintainability: {{ analysisData.summaries.metrics.maintainability_rating }}</div>
+                        </div>
+                      </div>
+
+                      <!-- Dead Code Summary -->
+                      <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.dead_code.dead_function_count > 0 }" @click="setAnalysisTab('dead-code')">
+                        <div class="summary-icon dead-code-icon">D</div>
+                        <div class="summary-info">
+                          <div class="summary-title">Dead Code</div>
+                          <div class="summary-stat">{{ analysisData.summaries.dead_code.dead_function_count }} unused functions</div>
+                          <div class="summary-detail">{{ analysisData.summaries.dead_code.dead_code_percentage }}% dead code</div>
+                        </div>
+                      </div>
+
+                      <!-- Duplication Summary -->
+                      <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.duplication.duplicate_group_count > 0 }" @click="setAnalysisTab('duplication')">
+                        <div class="summary-icon duplication-icon">2x</div>
+                        <div class="summary-info">
+                          <div class="summary-title">Code Duplication</div>
+                          <div class="summary-stat">{{ analysisData.summaries.duplication.duplicate_group_count }} duplicate groups</div>
+                          <div class="summary-detail">{{ analysisData.summaries.duplication.duplication_percentage }}% duplicated</div>
+                        </div>
+                      </div>
+
+                      <!-- Dependencies Summary -->
+                      <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.dependencies.circular_dependency_count > 0 }" @click="setAnalysisTab('dependencies')">
+                        <div class="summary-icon deps-icon">&#8644;</div>
+                        <div class="summary-info">
+                          <div class="summary-title">Dependencies</div>
+                          <div class="summary-stat">{{ analysisData.summaries.dependencies.total_dependencies }} dependencies</div>
+                          <div class="summary-detail">{{ analysisData.summaries.dependencies.circular_dependency_count }} circular</div>
+                        </div>
+                      </div>
+
+                      <!-- Security Summary -->
+                      <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.security.total_vulnerabilities > 0, 'has-critical': analysisData.summaries.security.high_severity > 0 }" @click="setAnalysisTab('security')">
+                        <div class="summary-icon security-icon">!</div>
+                        <div class="summary-info">
+                          <div class="summary-title">Security</div>
+                          <div class="summary-stat">{{ analysisData.summaries.security.total_vulnerabilities }} issues found</div>
+                          <div class="summary-detail">{{ analysisData.summaries.security.high_severity }} high severity</div>
+                        </div>
+                      </div>
+
+                      <!-- Code Smells Summary -->
+                      <div class="analysis-summary-card" :class="{ 'has-issues': analysisData.summaries.code_smells.total_smells > 0 }" @click="setAnalysisTab('code-smells')">
+                        <div class="summary-icon smells-icon">~</div>
+                        <div class="summary-info">
+                          <div class="summary-title">Code Smells</div>
+                          <div class="summary-stat">{{ analysisData.summaries.code_smells.total_smells }} smells detected</div>
+                          <div class="summary-detail">{{ analysisData.summaries.code_smells.smell_density }}% smell density</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                 <!-- Metrics Tab -->
                 <div v-if="analysisTab === 'metrics'" class="analysis-content">
@@ -929,7 +1013,230 @@
                     </div>
                   </div>
                 </div>
+
+                <!-- Concurrency Tab (On-demand) -->
+                <div v-if="analysisTab === 'concurrency'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Analyzing concurrency patterns...</div>
+                    <div class="loading-subtext">Scanning for async/await, threads, and synchronization primitives</div>
+                  </div>
+                  <div v-else-if="!analysisDetail" class="empty-state-container">
+                    <div class="empty-state-icon">||</div>
+                    <div class="empty-state-title">No Data Available</div>
+                    <div class="empty-state-message">Unable to load concurrency analysis. Please try again.</div>
+                  </div>
+                  <div v-else-if="analysisDetail.summary.functions_with_concurrency === 0" class="empty-state-container">
+                    <div class="empty-state-icon success">&#10003;</div>
+                    <div class="empty-state-title">No Concurrency Patterns Found</div>
+                    <div class="empty-state-message">This project doesn't appear to use concurrency features like async/await, threads, or synchronization primitives.</div>
+                  </div>
+                  <div v-else>
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.functions_with_concurrency }}</span><span class="stat-label">Functions</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_async_patterns }}</span><span class="stat-label">Async/Await</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_thread_patterns }}</span><span class="stat-label">Thread Patterns</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_sync_patterns }}</span><span class="stat-label">Sync Primitives</span></div>
+                      <div class="stat-item" :class="{ 'stat-warning': analysisDetail.summary.total_warnings > 0 }"><span class="stat-value">{{ analysisDetail.summary.total_warnings }}</span><span class="stat-label">Warnings</span></div>
+                    </div>
+
+                    <!-- Warnings -->
+                    <div v-if="analysisDetail.warnings && analysisDetail.warnings.length > 0" class="pattern-section">
+                      <h3>Concurrency Warnings</h3>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>Function</span><span>File</span><span>Warning</span></div>
+                        <div v-for="(warn, idx) in analysisDetail.warnings.slice(0, 10)" :key="idx" class="table-row warning-row" @click="navigateToFunctionById(warn)">
+                          <span class="fn-name">{{ warn.symbol }}</span>
+                          <span class="fn-file">{{ warn.filename }}:{{ warn.start_line }}</span>
+                          <span>{{ warn.description }}</span>
+                        </div>
+                        <div v-if="analysisDetail.warnings.length > 10" class="table-more">
+                          And {{ analysisDetail.warnings.length - 10 }} more...
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Async/Await Patterns -->
+                    <div v-if="analysisDetail.async_patterns_grouped && analysisDetail.async_patterns_grouped.length > 0" class="pattern-section">
+                      <h3>Async/Await Patterns</h3>
+                      <div v-for="group in analysisDetail.async_patterns_grouped" :key="group.type" class="pattern-group">
+                        <div class="pattern-group-header">
+                          <span class="pattern-type-badge async">{{ group.type }}</span>
+                          <span class="pattern-count">{{ group.count }} occurrences</span>
+                        </div>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span><span>Line</span></div>
+                          <div v-for="(loc, idx) in group.locations.slice(0, 10)" :key="idx" class="table-row" @click="navigateToFunctionById(loc)">
+                            <span class="fn-name">{{ loc.symbol }}</span>
+                            <span class="fn-file">{{ loc.filename }}</span>
+                            <span>{{ loc.line }}</span>
+                          </div>
+                          <div v-if="group.locations.length > 10" class="table-more">
+                            And {{ group.locations.length - 10 }} more...
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Thread Patterns -->
+                    <div v-if="analysisDetail.thread_patterns_grouped && analysisDetail.thread_patterns_grouped.length > 0" class="pattern-section">
+                      <h3>Thread Patterns</h3>
+                      <div v-for="group in analysisDetail.thread_patterns_grouped" :key="group.type" class="pattern-group">
+                        <div class="pattern-group-header">
+                          <span class="pattern-type-badge thread">{{ group.type }}</span>
+                          <span class="pattern-count">{{ group.count }} occurrences</span>
+                        </div>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span><span>Line</span></div>
+                          <div v-for="(loc, idx) in group.locations.slice(0, 10)" :key="idx" class="table-row" @click="navigateToFunctionById(loc)">
+                            <span class="fn-name">{{ loc.symbol }}</span>
+                            <span class="fn-file">{{ loc.filename }}</span>
+                            <span>{{ loc.line }}</span>
+                          </div>
+                          <div v-if="group.locations.length > 10" class="table-more">
+                            And {{ group.locations.length - 10 }} more...
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Synchronization Patterns -->
+                    <div v-if="analysisDetail.sync_patterns_grouped && analysisDetail.sync_patterns_grouped.length > 0" class="pattern-section">
+                      <h3>Synchronization Patterns</h3>
+                      <div v-for="group in analysisDetail.sync_patterns_grouped" :key="group.type" class="pattern-group">
+                        <div class="pattern-group-header">
+                          <span class="pattern-type-badge sync">{{ group.type }}</span>
+                          <span class="pattern-count">{{ group.count }} occurrences</span>
+                        </div>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span><span>Line</span></div>
+                          <div v-for="(loc, idx) in group.locations.slice(0, 10)" :key="idx" class="table-row" @click="navigateToFunctionById(loc)">
+                            <span class="fn-name">{{ loc.symbol }}</span>
+                            <span class="fn-file">{{ loc.filename }}</span>
+                            <span>{{ loc.line }}</span>
+                          </div>
+                          <div v-if="group.locations.length > 10" class="table-more">
+                            And {{ group.locations.length - 10 }} more...
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Resources Tab (On-demand) -->
+                <div v-if="analysisTab === 'resources'" class="analysis-content">
+                  <div v-if="loadingAnalysisDetail" class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Analyzing resource patterns...</div>
+                    <div class="loading-subtext">Scanning for memory allocations, file handles, and potential leaks</div>
+                  </div>
+                  <div v-else-if="!analysisDetail" class="empty-state-container">
+                    <div class="empty-state-icon">R</div>
+                    <div class="empty-state-title">No Data Available</div>
+                    <div class="empty-state-message">Unable to load resource analysis. Please try again.</div>
+                  </div>
+                  <div v-else-if="analysisDetail.summary.functions_with_resources === 0" class="empty-state-container">
+                    <div class="empty-state-icon success">&#10003;</div>
+                    <div class="empty-state-title">No Resource Patterns Found</div>
+                    <div class="empty-state-message">This project doesn't appear to use manual resource management patterns like memory allocation or file handles.</div>
+                  </div>
+                  <div v-else>
+                    <div class="analysis-stats-bar">
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.functions_with_resources }}</span><span class="stat-label">Functions</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_acquisitions }}</span><span class="stat-label">Acquisitions</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_releases }}</span><span class="stat-label">Releases</span></div>
+                      <div class="stat-item" :class="{ 'stat-warning': analysisDetail.summary.total_potential_leaks > 0 }"><span class="stat-value">{{ analysisDetail.summary.total_potential_leaks }}</span><span class="stat-label">Potential Leaks</span></div>
+                      <div class="stat-item" :class="{ 'stat-warning': analysisDetail.summary.total_warnings > 0 }"><span class="stat-value">{{ analysisDetail.summary.total_warnings }}</span><span class="stat-label">Warnings</span></div>
+                    </div>
+
+                    <!-- Potential Leaks -->
+                    <div v-if="analysisDetail.potential_leaks_grouped && analysisDetail.potential_leaks_grouped.length > 0" class="pattern-section">
+                      <h3>Potential Resource Leaks</h3>
+                      <div v-for="group in analysisDetail.potential_leaks_grouped" :key="group.name" class="pattern-group warning-group">
+                        <div class="pattern-group-header">
+                          <span class="pattern-type-badge leak">{{ group.name }}</span>
+                          <span class="pattern-count">{{ group.count }} occurrences</span>
+                        </div>
+                        <div v-if="group.description" class="pattern-description">{{ group.description }}</div>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span><span>Line</span></div>
+                          <div v-for="(loc, idx) in group.locations.slice(0, 10)" :key="idx" class="table-row warning-row" @click="navigateToFunctionById(loc)">
+                            <span class="fn-name">{{ loc.symbol }}</span>
+                            <span class="fn-file">{{ loc.filename }}</span>
+                            <span>{{ loc.line }}</span>
+                          </div>
+                          <div v-if="group.locations.length > 10" class="table-more">
+                            And {{ group.locations.length - 10 }} more...
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Warnings -->
+                    <div v-if="analysisDetail.warnings && analysisDetail.warnings.length > 0" class="pattern-section">
+                      <h3>Resource Warnings</h3>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>Function</span><span>File</span><span>Warning</span></div>
+                        <div v-for="(warn, idx) in analysisDetail.warnings.slice(0, 10)" :key="idx" class="table-row warning-row" @click="navigateToFunctionById(warn)">
+                          <span class="fn-name">{{ warn.symbol }}</span>
+                          <span class="fn-file">{{ warn.filename }}:{{ warn.start_line }}</span>
+                          <span>{{ warn.description }}</span>
+                        </div>
+                        <div v-if="analysisDetail.warnings.length > 10" class="table-more">
+                          And {{ analysisDetail.warnings.length - 10 }} more...
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Releases -->
+                    <div v-if="analysisDetail.releases_grouped && analysisDetail.releases_grouped.length > 0" class="pattern-section">
+                      <h3>Resource Releases</h3>
+                      <div v-for="group in analysisDetail.releases_grouped" :key="group.name" class="pattern-group">
+                        <div class="pattern-group-header">
+                          <span class="pattern-type-badge release">{{ group.name }}</span>
+                          <span class="pattern-count">{{ group.count }} occurrences</span>
+                        </div>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span><span>Line</span></div>
+                          <div v-for="(loc, idx) in group.locations.slice(0, 10)" :key="idx" class="table-row" @click="navigateToFunctionById(loc)">
+                            <span class="fn-name">{{ loc.symbol }}</span>
+                            <span class="fn-file">{{ loc.filename }}</span>
+                            <span>{{ loc.line }}</span>
+                          </div>
+                          <div v-if="group.locations.length > 10" class="table-more">
+                            And {{ group.locations.length - 10 }} more...
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Acquisitions -->
+                    <div v-if="analysisDetail.acquisitions_grouped && analysisDetail.acquisitions_grouped.length > 0" class="pattern-section">
+                      <h3>Resource Acquisitions</h3>
+                      <div v-for="group in analysisDetail.acquisitions_grouped" :key="group.name" class="pattern-group">
+                        <div class="pattern-group-header">
+                          <span class="pattern-type-badge alloc">{{ group.name }}</span>
+                          <span class="pattern-count">{{ group.count }} occurrences</span>
+                        </div>
+                        <div class="analysis-table">
+                          <div class="table-header"><span>Function</span><span>File</span><span>Line</span></div>
+                          <div v-for="(loc, idx) in group.locations.slice(0, 10)" :key="idx" class="table-row" @click="navigateToFunctionById(loc)">
+                            <span class="fn-name">{{ loc.symbol }}</span>
+                            <span class="fn-file">{{ loc.filename }}</span>
+                            <span>{{ loc.line }}</span>
+                          </div>
+                          <div v-if="group.locations.length > 10" class="table-more">
+                            And {{ group.locations.length - 10 }} more...
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
+            </div>
             </div>
 
             <!-- Project View (no file or function selected) -->
@@ -1219,37 +1526,45 @@
                 <div
                   class="tab"
                   :class="{ active: activeTab === 'source' }"
-                  @click="activeTab = 'source'"
+                  @click="setActiveTab('source')"
                 >
                   Source
                 </div>
                 <div
                   class="tab"
                   :class="{ active: activeTab === 'callgraph' }"
-                  @click="activeTab = 'callgraph'; loadInlineCallGraph()"
+                  @click="setActiveTab('callgraph')"
                 >
                   Call Graph
                 </div>
                 <div
                   class="tab"
                   :class="{ active: activeTab === 'flowchart' }"
-                  @click="activeTab = 'flowchart'; loadFlowchart()"
+                  @click="setActiveTab('flowchart')"
                 >
                   Flowchart
                 </div>
                 <div
                   class="tab"
                   :class="{ active: activeTab === 'callers' }"
-                  @click="activeTab = 'callers'; loadCallers()"
+                  @click="setActiveTab('callers')"
                 >
                   Callers ({{ callers.length || '...' }})
                 </div>
                 <div
                   class="tab"
                   :class="{ active: activeTab === 'callees' }"
-                  @click="activeTab = 'callees'; loadCallees()"
+                  @click="setActiveTab('callees')"
                 >
                   Callees ({{ callees.length || '...' }})
+                </div>
+                <div
+                  v-if="selectedFunction.type === 'struct' || selectedFunction.type === 'class'"
+                  class="tab"
+                  :class="{ active: activeTab === 'references' }"
+                  @click="setActiveTab('references')"
+                >
+                  References ({{ entityReferences.length || '...' }})
                 </div>
               </div>
 
@@ -1400,6 +1715,59 @@
                   </div>
                 </div>
                 <div v-else class="empty-state">No callees found</div>
+              </div>
+
+              <div v-if="activeTab === 'references'">
+                <div v-if="loadingReferences" class="loading">Loading references...</div>
+                <div v-else-if="entityReferences.length > 0" class="references-container">
+                  <div class="references-summary">
+                    Found {{ entityReferences.length }} reference(s) to {{ selectedFunction.symbol }}
+                    <span v-if="referenceDefinitions.length > 1" class="definitions-note">
+                      ({{ referenceDefinitions.length }} definitions found across projects)
+                    </span>
+                  </div>
+
+                  <!-- Definitions section - shows all struct/class definitions with this name -->
+                  <div v-if="referenceDefinitions.length > 0" class="definitions-section">
+                    <h4>Definitions</h4>
+                    <div class="definitions-list">
+                      <div
+                        v-for="def in referenceDefinitions"
+                        :key="def.id"
+                        class="definition-item"
+                        @click="navigateToDefinition(def)"
+                      >
+                        <span class="entity-type-badge" :class="'type-' + def.type">{{ def.type }}</span>
+                        <span class="definition-symbol">{{ def.symbol }}</span>
+                        <span class="definition-location">
+                          {{ def.project_name }} / {{ def.filename }}:{{ def.start_line }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- References grouped by type -->
+                  <div class="references-by-type">
+                    <div v-for="(refs, refType) in groupedReferences" :key="refType" class="reference-type-group">
+                      <h4>{{ formatReferenceType(refType) }} ({{ refs.length }})</h4>
+                      <div class="reference-list">
+                        <div
+                          v-for="ref in refs"
+                          :key="ref.id"
+                          class="reference-item"
+                        >
+                          <div class="reference-location">
+                            {{ ref.filename }}:{{ ref.line }}
+                          </div>
+                          <div v-if="ref.context" class="reference-context">
+                            <code>{{ ref.context }}</code>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="empty-state">No references found for this {{ selectedFunction.type }}</div>
               </div>
             </div>
           </div>

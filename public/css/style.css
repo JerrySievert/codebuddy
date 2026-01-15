@@ -2484,3 +2484,612 @@ header h1 {
   font-size: 0.8em;
   font-family: monospace;
 }
+
+/* References Tab Styles */
+.references-container {
+  padding: 0;
+}
+
+.references-summary {
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 0.95em;
+  color: #555;
+}
+
+.definitions-note {
+  color: #1976d2;
+  font-weight: 500;
+}
+
+.definitions-section {
+  margin-bottom: 20px;
+}
+
+.definitions-section h4 {
+  margin: 0 0 10px 0;
+  padding: 8px 0;
+  border-bottom: 1px solid #e0e0e0;
+  color: #333;
+  font-size: 1em;
+}
+
+.definitions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.definition-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #e3f2fd;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.definition-item:hover {
+  background: #bbdefb;
+}
+
+.definition-symbol {
+  font-family: monospace;
+  font-weight: 600;
+  color: #1565c0;
+}
+
+.definition-location {
+  font-family: monospace;
+  font-size: 0.85em;
+  color: #666;
+  margin-left: auto;
+}
+
+.references-by-type {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reference-type-group h4 {
+  margin: 0 0 8px 0;
+  padding: 8px 0;
+  border-bottom: 1px solid #e0e0e0;
+  color: #333;
+  font-size: 0.95em;
+}
+
+.reference-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reference-item {
+  padding: 8px 12px;
+  border-left: 3px solid #90caf9;
+  background: #fafafa;
+  border-radius: 0 4px 4px 0;
+}
+
+.reference-location {
+  font-family: monospace;
+  font-size: 0.9em;
+  color: #1976d2;
+  margin-bottom: 4px;
+}
+
+.reference-context {
+  font-size: 0.85em;
+  color: #666;
+  overflow-x: auto;
+}
+
+.reference-context code {
+  font-family: monospace;
+  white-space: pre;
+  display: block;
+  padding: 4px 0;
+}
+
+/* Concurrency and Resources Analysis Styles */
+.file-section {
+  margin-bottom: 24px;
+}
+
+.file-header {
+  font-size: 0.95em;
+  color: #1976d2;
+  margin: 0 0 12px 0;
+  padding: 8px 12px;
+  background: #e3f2fd;
+  border-radius: 6px;
+  font-family: monospace;
+}
+
+.pattern-section {
+  margin-bottom: 24px;
+}
+
+.pattern-section h3 {
+  margin: 0 0 16px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e0e0e0;
+  color: #333;
+}
+
+.pattern-section.has-issues h3 {
+  color: #c62828;
+  border-bottom-color: #ffcdd2;
+}
+
+.pattern-group {
+  margin-bottom: 20px;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.pattern-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.pattern-type {
+  font-weight: 600;
+  color: #1976d2;
+  font-family: monospace;
+}
+
+.pattern-type.safe {
+  color: #2e7d32;
+}
+
+.pattern-count {
+  font-size: 0.85em;
+  color: #666;
+  background: #e0e0e0;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.pattern-description {
+  font-size: 0.85em;
+  color: #666;
+  margin-bottom: 12px;
+  font-style: italic;
+}
+
+.pattern-name {
+  font-family: monospace;
+  color: #333;
+}
+
+.pattern-line {
+  color: #666;
+  font-size: 0.9em;
+  text-align: right;
+}
+
+.table-more {
+  padding: 8px 12px;
+  color: #666;
+  font-size: 0.85em;
+  font-style: italic;
+  text-align: center;
+  background: #f5f5f5;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.table-row.is-acquire {
+  border-left: 3px solid #4caf50;
+}
+
+.table-row.is-release {
+  border-left: 3px solid #2196f3;
+}
+
+.table-row.has-issues {
+  border-left: 3px solid #f44336;
+  background: #fff8f8;
+}
+
+/* Icon colors for concurrency and resources */
+.concurrency-icon {
+  color: #9c27b0;
+  font-weight: bold;
+}
+
+.resources-icon {
+  color: #ff5722;
+  font-weight: bold;
+}
+
+/* ============================================
+   Analysis Dashboard - Sidebar Layout Styles
+   ============================================ */
+
+.analysis-layout {
+  display: flex;
+  gap: 24px;
+  min-height: 600px;
+}
+
+/* Sidebar Navigation */
+.analysis-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+  padding: 16px 0;
+  height: fit-content;
+  position: sticky;
+  top: 20px;
+}
+
+/* Health Score in Sidebar */
+.sidebar-health {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  margin: 0 12px 16px 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.sidebar-health.health-good {
+  background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+}
+
+.sidebar-health.health-moderate {
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+}
+
+.sidebar-health.health-poor {
+  background: linear-gradient(135deg, #f44336 0%, #c62828 100%);
+}
+
+.sidebar-health .health-score {
+  font-size: 2.5em;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.sidebar-health .health-label {
+  font-size: 0.85em;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+
+/* Sidebar Items */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  margin: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #555;
+}
+
+.sidebar-item:hover {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.sidebar-item.active {
+  background: #e3f2fd;
+  color: #1976d2;
+  font-weight: 500;
+}
+
+.sidebar-item.has-issues {
+  color: #e65100;
+}
+
+.sidebar-item.has-critical {
+  color: #c62828;
+}
+
+.sidebar-icon {
+  width: 24px;
+  font-size: 0.9em;
+  text-align: center;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.sidebar-item.active .sidebar-icon {
+  color: #1976d2;
+}
+
+.sidebar-text {
+  flex: 1;
+  font-size: 0.9em;
+}
+
+.sidebar-badge {
+  font-size: 0.75em;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: #e0e0e0;
+  color: #666;
+  font-weight: 500;
+}
+
+.sidebar-badge.warning {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.sidebar-badge.critical {
+  background: #ffebee;
+  color: #c62828;
+}
+
+/* Sidebar Groups */
+.sidebar-group {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+}
+
+.sidebar-group:first-of-type {
+  margin-top: 8px;
+  padding-top: 0;
+  border-top: none;
+}
+
+.sidebar-group-title {
+  font-size: 0.7em;
+  font-weight: 600;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0 16px 8px 16px;
+}
+
+/* Main Content Area */
+.analysis-main {
+  flex: 1;
+  min-width: 0;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+  padding: 24px;
+}
+
+.analysis-main .analysis-header {
+  margin-bottom: 16px;
+}
+
+.analysis-main .breadcrumb {
+  margin-bottom: 0;
+}
+
+.analysis-content h2 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 1.4em;
+  color: #333;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.analysis-content h3 {
+  margin-top: 24px;
+  margin-bottom: 12px;
+  font-size: 1.1em;
+  color: #444;
+}
+
+.analysis-content h3:first-child {
+  margin-top: 0;
+}
+
+.overview-description {
+  color: #666;
+  font-size: 0.95em;
+  margin-bottom: 24px;
+}
+
+/* Pattern Type Badges for Concurrency/Resources */
+.pattern-type-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-weight: 500;
+  font-family: monospace;
+}
+
+.pattern-type-badge.async {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.pattern-type-badge.thread {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.pattern-type-badge.sync {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.pattern-type-badge.leak {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.pattern-type-badge.alloc {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.pattern-type-badge.release {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+/* Warning Group Style */
+.pattern-group.warning-group {
+  background: #fff8f8;
+  border: 1px solid #ffcdd2;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 900px) {
+  .analysis-layout {
+    flex-direction: column;
+  }
+
+  .analysis-sidebar {
+    width: 100%;
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .sidebar-health {
+    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+    gap: 12px;
+    margin: 0 0 8px 0;
+    padding: 12px 16px;
+  }
+
+  .sidebar-health .health-score {
+    font-size: 1.8em;
+  }
+
+  .sidebar-group {
+    display: contents;
+  }
+
+  .sidebar-group-title {
+    display: none;
+  }
+
+  .sidebar-item {
+    padding: 8px 12px;
+    margin: 0;
+    border: 1px solid #e0e0e0;
+  }
+}
+
+/* ============================================
+   Loading Animation and Empty State Styles
+   ============================================ */
+
+/* Loading Container */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+/* Spinning Loader */
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e0e0e0;
+  border-top-color: #1976d2;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  font-size: 1.1em;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.loading-subtext {
+  font-size: 0.9em;
+  color: #666;
+}
+
+/* Empty State Container */
+.empty-state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  background: #fafafa;
+  border-radius: 12px;
+  border: 2px dashed #e0e0e0;
+}
+
+.empty-state-icon {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8em;
+  font-weight: bold;
+  background: #f0f0f0;
+  color: #999;
+  border-radius: 50%;
+  margin-bottom: 20px;
+}
+
+.empty-state-icon.success {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.empty-state-icon.warning {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.empty-state-icon.error {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.empty-state-title {
+  font-size: 1.2em;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.empty-state-message {
+  font-size: 0.95em;
+  color: #666;
+  max-width: 400px;
+  line-height: 1.5;
+}
