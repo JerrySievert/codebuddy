@@ -1263,38 +1263,32 @@
                     <div class="empty-state-title">No Data Available</div>
                     <div class="empty-state-message">Unable to load pattern analysis. Please try again.</div>
                   </div>
-                  <div v-else-if="analysisDetail.summary.total_patterns === 0 && analysisDetail.summary.total_anti_patterns === 0" class="empty-state-container">
+                  <div v-else-if="analysisDetail.summary.total_patterns_detected === 0 && (!analysisDetail.anti_patterns || analysisDetail.anti_patterns.length === 0)" class="empty-state-container">
                     <div class="empty-state-icon">P</div>
                     <div class="empty-state-title">No Patterns Detected</div>
                     <div class="empty-state-message">No common design patterns or anti-patterns were detected in this project.</div>
                   </div>
                   <div v-else>
                     <div class="analysis-stats-bar">
-                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_patterns }}</span><span class="stat-label">Design Patterns</span></div>
-                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_anti_patterns }}</span><span class="stat-label">Anti-Patterns</span></div>
-                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.files_analyzed }}</span><span class="stat-label">Files Analyzed</span></div>
-                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_error_handlers }}</span><span class="stat-label">Error Handlers</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_patterns_detected }}</span><span class="stat-label">Design Patterns</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.patterns_by_category['anti-pattern'] || 0 }}</span><span class="stat-label">Anti-Patterns</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_functions }}</span><span class="stat-label">Functions Analyzed</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.error_handling.functions_with_error_handling }}</span><span class="stat-label">Error Handlers</span></div>
                     </div>
 
-                    <!-- Design Patterns -->
-                    <div v-if="analysisDetail.patterns && analysisDetail.patterns.length > 0" class="pattern-section">
+                    <!-- Design Patterns by Category -->
+                    <div v-if="analysisDetail.pattern_locations && analysisDetail.pattern_locations.length > 0" class="pattern-section">
                       <h3>Design Patterns Detected</h3>
-                      <div v-for="pattern in analysisDetail.patterns" :key="pattern.name" class="pattern-group">
-                        <div class="pattern-group-header">
-                          <span class="pattern-type-badge pattern">{{ pattern.name }}</span>
-                          <span class="pattern-count">{{ pattern.occurrences.length }} occurrences</span>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>Pattern</span><span>File</span><span>Line</span><span>Context</span></div>
+                        <div v-for="(loc, idx) in analysisDetail.pattern_locations.slice(0, 20)" :key="idx" class="table-row">
+                          <span class="pattern-type-badge pattern">{{ loc.pattern }}</span>
+                          <span class="fn-file">{{ loc.filename }}</span>
+                          <span>{{ loc.line }}</span>
+                          <span class="pattern-context">{{ loc.context }}</span>
                         </div>
-                        <div v-if="pattern.description" class="pattern-description">{{ pattern.description }}</div>
-                        <div class="analysis-table">
-                          <div class="table-header"><span>File</span><span>Line</span><span>Context</span></div>
-                          <div v-for="(occ, idx) in pattern.occurrences.slice(0, 10)" :key="idx" class="table-row">
-                            <span class="fn-file">{{ occ.filename }}</span>
-                            <span>{{ occ.line }}</span>
-                            <span class="pattern-context">{{ occ.context }}</span>
-                          </div>
-                          <div v-if="pattern.occurrences.length > 10" class="table-more">
-                            And {{ pattern.occurrences.length - 10 }} more...
-                          </div>
+                        <div v-if="analysisDetail.pattern_locations.length > 20" class="table-more">
+                          And {{ analysisDetail.pattern_locations.length - 20 }} more...
                         </div>
                       </div>
                     </div>
@@ -1302,33 +1296,27 @@
                     <!-- Anti-Patterns -->
                     <div v-if="analysisDetail.anti_patterns && analysisDetail.anti_patterns.length > 0" class="pattern-section">
                       <h3>Anti-Patterns Detected</h3>
-                      <div v-for="pattern in analysisDetail.anti_patterns" :key="pattern.name" class="pattern-group warning-group">
-                        <div class="pattern-group-header">
-                          <span class="pattern-type-badge anti-pattern">{{ pattern.name }}</span>
-                          <span class="pattern-count">{{ pattern.occurrences.length }} occurrences</span>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>Anti-Pattern</span><span>File</span><span>Line</span><span>Context</span></div>
+                        <div v-for="(loc, idx) in analysisDetail.anti_patterns.slice(0, 20)" :key="idx" class="table-row warning-row">
+                          <span class="pattern-type-badge anti-pattern">{{ loc.pattern }}</span>
+                          <span class="fn-file">{{ loc.filename }}</span>
+                          <span>{{ loc.line }}</span>
+                          <span class="pattern-context">{{ loc.context }}</span>
                         </div>
-                        <div v-if="pattern.description" class="pattern-description">{{ pattern.description }}</div>
-                        <div class="analysis-table">
-                          <div class="table-header"><span>File</span><span>Line</span><span>Context</span></div>
-                          <div v-for="(occ, idx) in pattern.occurrences.slice(0, 10)" :key="idx" class="table-row warning-row">
-                            <span class="fn-file">{{ occ.filename }}</span>
-                            <span>{{ occ.line }}</span>
-                            <span class="pattern-context">{{ occ.context }}</span>
-                          </div>
-                          <div v-if="pattern.occurrences.length > 10" class="table-more">
-                            And {{ pattern.occurrences.length - 10 }} more...
-                          </div>
+                        <div v-if="analysisDetail.anti_patterns.length > 20" class="table-more">
+                          And {{ analysisDetail.anti_patterns.length - 20 }} more...
                         </div>
                       </div>
                     </div>
 
                     <!-- Error Handling -->
-                    <div v-if="analysisDetail.error_handling" class="pattern-section">
+                    <div v-if="analysisDetail.summary.error_handling" class="pattern-section">
                       <h3>Error Handling Analysis</h3>
                       <div class="analysis-stats-bar">
-                        <div class="stat-item"><span class="stat-value">{{ analysisDetail.error_handling.try_catch_blocks }}</span><span class="stat-label">Try/Catch</span></div>
-                        <div class="stat-item" :class="{ 'stat-warning': analysisDetail.error_handling.empty_catch_blocks > 0 }"><span class="stat-value">{{ analysisDetail.error_handling.empty_catch_blocks }}</span><span class="stat-label">Empty Catch</span></div>
-                        <div class="stat-item"><span class="stat-value">{{ analysisDetail.error_handling.finally_blocks }}</span><span class="stat-label">Finally Blocks</span></div>
+                        <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.error_handling.total_try_catch }}</span><span class="stat-label">Try/Catch</span></div>
+                        <div class="stat-item" :class="{ 'stat-warning': analysisDetail.summary.error_handling.total_empty_catch > 0 }"><span class="stat-value">{{ analysisDetail.summary.error_handling.total_empty_catch }}</span><span class="stat-label">Empty Catch</span></div>
+                        <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.error_handling.total_finally }}</span><span class="stat-label">Finally Blocks</span></div>
                       </div>
                     </div>
                   </div>
@@ -1346,29 +1334,28 @@
                     <div class="empty-state-title">No Data Available</div>
                     <div class="empty-state-message">Unable to load test analysis. Please try again.</div>
                   </div>
-                  <div v-else-if="analysisDetail.summary.test_file_count === 0" class="empty-state-container">
+                  <div v-else-if="analysisDetail.summary.test_files === 0" class="empty-state-container">
                     <div class="empty-state-icon warning">!</div>
                     <div class="empty-state-title">No Test Files Found</div>
                     <div class="empty-state-message">This project doesn't appear to have any test files. Consider adding tests to improve code quality.</div>
                   </div>
                   <div v-else>
                     <div class="analysis-stats-bar">
-                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.test_file_count }}</span><span class="stat-label">Test Files</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.test_files }}</span><span class="stat-label">Test Files</span></div>
                       <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_assertions }}</span><span class="stat-label">Assertions</span></div>
                       <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_mocks }}</span><span class="stat-label">Mocks/Stubs</span></div>
-                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.test_ratio }}%</span><span class="stat-label">Test Ratio</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.test_to_code_ratio }}%</span><span class="stat-label">Test Ratio</span></div>
                     </div>
 
                     <!-- Test Files -->
                     <div v-if="analysisDetail.test_files && analysisDetail.test_files.length > 0" class="pattern-section">
                       <h3>Test Files</h3>
                       <div class="analysis-table">
-                        <div class="table-header"><span>File</span><span>Assertions</span><span>Mocks</span><span>Framework</span></div>
+                        <div class="table-header"><span>File</span><span>Assertions</span><span>Mocks</span></div>
                         <div v-for="file in analysisDetail.test_files.slice(0, 20)" :key="file.filename" class="table-row">
                           <span class="fn-file">{{ file.filename }}</span>
-                          <span>{{ file.assertion_count }}</span>
-                          <span>{{ file.mock_count }}</span>
-                          <span class="test-framework-badge">{{ file.framework || 'unknown' }}</span>
+                          <span>{{ file.assertions }}</span>
+                          <span>{{ file.mocks }}</span>
                         </div>
                         <div v-if="analysisDetail.test_files.length > 20" class="table-more">
                           And {{ analysisDetail.test_files.length - 20 }} more...
@@ -1381,10 +1368,10 @@
                       <h3>Potential Coverage Gaps</h3>
                       <div class="pattern-description">Source files that may not have corresponding test files.</div>
                       <div class="analysis-table">
-                        <div class="table-header"><span>Source File</span><span>Functions</span></div>
+                        <div class="table-header"><span>Source File</span><span>Message</span></div>
                         <div v-for="gap in analysisDetail.coverage_gaps.slice(0, 15)" :key="gap.filename" class="table-row warning-row">
                           <span class="fn-file">{{ gap.filename }}</span>
-                          <span>{{ gap.function_count }}</span>
+                          <span>{{ gap.message }}</span>
                         </div>
                         <div v-if="analysisDetail.coverage_gaps.length > 15" class="table-more">
                           And {{ analysisDetail.coverage_gaps.length - 15 }} more...
@@ -1409,15 +1396,15 @@
                   <div v-else>
                     <div class="analysis-stats-bar">
                       <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_identifiers }}</span><span class="stat-label">Identifiers</span></div>
-                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.consistency_score }}%</span><span class="stat-label">Consistency</span></div>
-                      <div class="stat-item" :class="{ 'stat-warning': analysisDetail.summary.violations > 0 }"><span class="stat-value">{{ analysisDetail.summary.violations }}</span><span class="stat-label">Violations</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.compliance_rate }}%</span><span class="stat-label">Compliance</span></div>
+                      <div class="stat-item" :class="{ 'stat-warning': analysisDetail.summary.non_compliant > 0 }"><span class="stat-value">{{ analysisDetail.summary.non_compliant }}</span><span class="stat-label">Violations</span></div>
                     </div>
 
                     <!-- Convention Breakdown -->
-                    <div v-if="analysisDetail.conventions" class="pattern-section">
+                    <div v-if="analysisDetail.convention_distribution" class="pattern-section">
                       <h3>Convention Usage</h3>
                       <div class="naming-conventions-grid">
-                        <div v-for="(count, convention) in analysisDetail.conventions" :key="convention" class="naming-convention-card">
+                        <div v-for="(count, convention) in analysisDetail.convention_distribution" :key="convention" class="naming-convention-card">
                           <div class="convention-name">{{ convention }}</div>
                           <div class="convention-count">{{ count }}</div>
                         </div>
@@ -1428,12 +1415,12 @@
                     <div v-if="analysisDetail.violations && analysisDetail.violations.length > 0" class="pattern-section">
                       <h3>Naming Violations</h3>
                       <div class="analysis-table">
-                        <div class="table-header"><span>Identifier</span><span>File</span><span>Expected</span><span>Actual</span></div>
+                        <div class="table-header"><span>Identifier</span><span>File</span><span>Expected</span><span>Detected</span></div>
                         <div v-for="(violation, idx) in analysisDetail.violations.slice(0, 20)" :key="idx" class="table-row warning-row">
-                          <span class="fn-name">{{ violation.identifier }}</span>
+                          <span class="fn-name">{{ violation.symbol }}</span>
                           <span class="fn-file">{{ violation.filename }}:{{ violation.line }}</span>
-                          <span>{{ violation.expected_convention }}</span>
-                          <span>{{ violation.actual_convention }}</span>
+                          <span>{{ violation.expected.join(', ') }}</span>
+                          <span>{{ violation.detected.join(', ') }}</span>
                         </div>
                         <div v-if="analysisDetail.violations.length > 20" class="table-more">
                           And {{ analysisDetail.violations.length - 20 }} more...
@@ -1456,30 +1443,54 @@
                     <div class="empty-state-message">Unable to load readability analysis. Please try again.</div>
                   </div>
                   <div v-else>
-                    <div class="readability-score-card" :class="'readability-' + analysisDetail.summary.rating.toLowerCase()">
-                      <div class="readability-score">{{ analysisDetail.summary.average_score }}</div>
-                      <div class="readability-label">{{ analysisDetail.summary.rating }}</div>
+                    <div class="readability-score-card" :class="'readability-' + (analysisDetail.summary.avg_score >= 85 ? 'excellent' : analysisDetail.summary.avg_score >= 70 ? 'good' : analysisDetail.summary.avg_score >= 55 ? 'acceptable' : 'poor')">
+                      <div class="readability-score">{{ analysisDetail.summary.avg_score }}</div>
+                      <div class="readability-label">{{ analysisDetail.summary.avg_score >= 85 ? 'Excellent' : analysisDetail.summary.avg_score >= 70 ? 'Good' : analysisDetail.summary.avg_score >= 55 ? 'Acceptable' : 'Poor' }}</div>
                     </div>
 
                     <div class="analysis-stats-bar">
-                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.files_analyzed }}</span><span class="stat-label">Files</span></div>
-                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.avg_comment_ratio }}%</span><span class="stat-label">Comment Ratio</span></div>
-                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.avg_line_length }}</span><span class="stat-label">Avg Line Length</span></div>
-                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.avg_nesting_depth }}</span><span class="stat-label">Avg Nesting</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.summary.total_functions }}</span><span class="stat-label">Functions</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.metrics?.avg_line_length || 0 }}</span><span class="stat-label">Avg Line Length</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.metrics?.avg_nesting_depth || 0 }}</span><span class="stat-label">Avg Nesting</span></div>
+                      <div class="stat-item"><span class="stat-value">{{ analysisDetail.metrics?.total_magic_numbers || 0 }}</span><span class="stat-label">Magic Numbers</span></div>
                     </div>
 
-                    <!-- Lowest Scoring Files -->
-                    <div v-if="analysisDetail.lowest_scoring && analysisDetail.lowest_scoring.length > 0" class="pattern-section">
-                      <h3>Files Needing Improvement</h3>
-                      <div class="analysis-table">
-                        <div class="table-header"><span>File</span><span>Score</span><span>Issues</span></div>
-                        <div v-for="file in analysisDetail.lowest_scoring.slice(0, 15)" :key="file.filename" class="table-row" :class="{ 'warning-row': file.score < 50 }">
-                          <span class="fn-file">{{ file.filename }}</span>
-                          <span class="readability-file-score" :class="'score-' + (file.score >= 70 ? 'good' : file.score >= 50 ? 'fair' : 'poor')">{{ file.score }}</span>
-                          <span class="readability-issues">{{ file.issues.join(', ') }}</span>
+                    <!-- Score Distribution -->
+                    <div v-if="analysisDetail.summary.score_distribution" class="pattern-section">
+                      <h3>Score Distribution</h3>
+                      <div class="naming-conventions-grid">
+                        <div class="naming-convention-card">
+                          <div class="convention-name">Excellent (85+)</div>
+                          <div class="convention-count">{{ analysisDetail.summary.score_distribution.excellent || 0 }}</div>
                         </div>
-                        <div v-if="analysisDetail.lowest_scoring.length > 15" class="table-more">
-                          And {{ analysisDetail.lowest_scoring.length - 15 }} more...
+                        <div class="naming-convention-card">
+                          <div class="convention-name">Good (70-84)</div>
+                          <div class="convention-count">{{ analysisDetail.summary.score_distribution.good || 0 }}</div>
+                        </div>
+                        <div class="naming-convention-card">
+                          <div class="convention-name">Acceptable (55-69)</div>
+                          <div class="convention-count">{{ analysisDetail.summary.score_distribution.acceptable || 0 }}</div>
+                        </div>
+                        <div class="naming-convention-card">
+                          <div class="convention-name">Poor (&lt;55)</div>
+                          <div class="convention-count">{{ (analysisDetail.summary.score_distribution.poor || 0) + (analysisDetail.summary.score_distribution.very_poor || 0) }}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Functions Needing Improvement -->
+                    <div v-if="analysisDetail.worst_functions && analysisDetail.worst_functions.length > 0" class="pattern-section">
+                      <h3>Functions Needing Improvement</h3>
+                      <div class="analysis-table">
+                        <div class="table-header"><span>Function</span><span>File</span><span>Score</span><span>Rating</span></div>
+                        <div v-for="fn in analysisDetail.worst_functions.slice(0, 15)" :key="fn.symbol + fn.filename" class="table-row" :class="{ 'warning-row': fn.score < 50 }">
+                          <span class="fn-name">{{ fn.symbol }}</span>
+                          <span class="fn-file">{{ fn.filename }}</span>
+                          <span class="readability-file-score" :class="'score-' + (fn.score >= 70 ? 'good' : fn.score >= 50 ? 'fair' : 'poor')">{{ fn.score }}</span>
+                          <span>{{ fn.rating }}</span>
+                        </div>
+                        <div v-if="analysisDetail.worst_functions.length > 15" class="table-more">
+                          And {{ analysisDetail.worst_functions.length - 15 }} more...
                         </div>
                       </div>
                     </div>
