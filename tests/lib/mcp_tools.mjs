@@ -56,7 +56,10 @@ await test('createMcpServer creates server with all expected tools', async (t) =
     'analysis_resources',
     // Naming and readability analysis tools
     'analysis_naming',
-    'analysis_readability'
+    'analysis_readability',
+    // Pattern detection and test analysis tools
+    'analysis_patterns',
+    'analysis_tests'
   ];
 
   for (const toolName of expectedNewTools) {
