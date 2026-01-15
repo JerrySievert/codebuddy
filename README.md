@@ -86,7 +86,7 @@ The Docker setup uses the following default configuration:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/anthropics/codebuddy.git
+git clone https://github.com/jerrysievert/codebuddy.git
 cd codebuddy
 ```
 
