@@ -6,7 +6,7 @@
  * Tool functionality is tested via the HTTP transport in mcp_http.mjs.
  */
 
-import { createMcpServer } from '../../lib/mcp-http.mjs';
+import { create_mcp_server } from '../../lib/mcp-http.mjs';
 import { test } from 'st';
 
 // Helper to get registered tool names from the server's internal registry
@@ -18,8 +18,8 @@ const getToolNames = (server) => {
 
 // ============ MCP Server Creation Tests ============
 
-await test('createMcpServer creates server with all expected tools', async (t) => {
-  const server = createMcpServer();
+await test('create_mcp_server creates server with all expected tools', async (t) => {
+  const server = create_mcp_server();
   const toolNames = getToolNames(server);
 
   // Check that all new tools are registered
@@ -63,12 +63,16 @@ await test('createMcpServer creates server with all expected tools', async (t) =
   ];
 
   for (const toolName of expectedNewTools) {
-    t.assert.eq(toolNames.includes(toolName), true, `Should have tool '${toolName}'`);
+    t.assert.eq(
+      toolNames.includes(toolName),
+      true,
+      `Should have tool '${toolName}'`
+    );
   }
 });
 
-await test('createMcpServer creates server with original tools', async (t) => {
-  const server = createMcpServer();
+await test('create_mcp_server creates server with original tools', async (t) => {
+  const server = create_mcp_server();
   const toolNames = getToolNames(server);
 
   // Check that original tools are still present
@@ -89,6 +93,10 @@ await test('createMcpServer creates server with original tools', async (t) => {
   ];
 
   for (const toolName of originalTools) {
-    t.assert.eq(toolNames.includes(toolName), true, `Should have original tool '${toolName}'`);
+    t.assert.eq(
+      toolNames.includes(toolName),
+      true,
+      `Should have original tool '${toolName}'`
+    );
   }
 });

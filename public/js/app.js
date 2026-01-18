@@ -6,6 +6,7 @@ createApp({
     const loadingProjects = ref(true);
     const selectedProject = ref(null);
     const projectInfo = ref(null);
+    const loadingProjectInfo = ref(false);
 
     const searchQuery = ref('');
     const searchResults = ref([]);
@@ -14,6 +15,8 @@ createApp({
     const selectedFile = ref(null);
     const fileFunctions = ref([]);
     const loadingFileFunctions = ref(false);
+    const fileAnalytics = ref(null);
+    const loadingFileAnalytics = ref(false);
 
     const showingAllFunctions = ref(false);
     const allFunctions = ref([]);
@@ -37,11 +40,12 @@ createApp({
     // Call graph state
     const showCallGraph = ref(false);
     const callGraphRoot = ref('');
-    const callGraphData = ref(null);
+    const callGraphData = ref(null); // Full data from server (fetched unlimited)
     const loadingCallGraph = ref(false);
     const selectedGraphNode = ref(null);
     const graphContainer = ref(null);
     const graphSvg = ref(null);
+    const callGraphDepth = ref(5); // Display depth: 5, min: 2, 0 = unlimited
 
     // Flowchart/tree view state
     const graphViewType = ref('callgraph'); // 'callgraph', 'callers', 'callees'
@@ -66,6 +70,9 @@ createApp({
     const inlineGraphContainer = ref(null);
     const inlineGraphSvg = ref(null);
     const selectedInlineGraphNode = ref(null);
+    const inlineCallGraphDepth = ref(5); // Default depth: 5, min: 2, 0 = unlimited
+    const inlineGraphFullscreen = ref(false);
+    const flowchartFullscreen = ref(false);
     let inlineGraphZoom = null;
     let inlineGraphG = null;
     let inlineGraphSvgElement = null;
@@ -88,10 +95,33 @@ createApp({
 
     // Job queue state
     const jobs = ref([]);
-    const jobQueueStats = ref({ queued: 0, running: 0, completed: 0, failed: 0, total: 0 });
+    const jobQueueStats = ref({
+      queued: 0,
+      running: 0,
+      completed: 0,
+      failed: 0,
+      total: 0
+    });
     const jobQueueMinimized = ref(false);
     const showJobsView = ref(false);
     let jobPollInterval = null;
+
+    // WebSocket state for real-time job updates
+    let nesClient = null;
+    let wsConnected = ref(false);
+    const jobSubscriptions = new Map(); // Map of jobId -> { onComplete, onError }
+    const wsReconnectDelay = 2000;
+
+    // File list display state (for large projects)
+    const fileDisplayLimit = ref(100);
+    const FILE_DISPLAY_INCREMENT = 100;
+
+    // Directory navigation state
+    const currentDirectory = ref(''); // Empty string = root
+
+    // Function list display state (for all entities view)
+    const functionDisplayLimit = ref(100);
+    const FUNCTION_DISPLAY_INCREMENT = 100;
 
     // Analysis state
     const showAnalysisView = ref(false);
@@ -112,6 +142,9 @@ createApp({
       if (selectedProject.value) {
         params.set('project', selectedProject.value.name);
       }
+      if (currentDirectory.value) {
+        params.set('dir', currentDirectory.value);
+      }
       if (selectedFile.value) {
         params.set('file', selectedFile.value);
       }
@@ -128,6 +161,10 @@ createApp({
         params.set('callgraph', callGraphRoot.value);
         if (graphViewType.value && graphViewType.value !== 'callgraph') {
           params.set('graphType', graphViewType.value);
+        }
+        // Include depth if it's not the default (5)
+        if (callGraphDepth.value !== 5) {
+          params.set('depth', callGraphDepth.value);
         }
       }
       if (showingAllFunctions.value) {
@@ -153,12 +190,14 @@ createApp({
 
       const params = new URLSearchParams(hash);
       const projectName = params.get('project');
+      const dirPath = params.get('dir');
       const fileName = params.get('file');
       const functionName = params.get('function');
       const funcFile = params.get('funcFile');
       const tab = params.get('tab');
       const callgraphRoot = params.get('callgraph');
       const graphType = params.get('graphType');
+      const depthParam = params.get('depth');
       const view = params.get('view');
       const analysisTabParam = params.get('analysisTab');
 
@@ -174,11 +213,14 @@ createApp({
         while (loadingProjects.value) {
           await new Promise((r) => setTimeout(r, 50));
         }
-        const project = projects.value.find(
-          (p) => p.name === projectName
-        );
+        const project = projects.value.find((p) => p.name === projectName);
         if (project) {
           await selectProject(project, true); // true = skip URL update
+
+          // Restore directory path if specified
+          if (dirPath) {
+            currentDirectory.value = dirPath;
+          }
 
           // Handle analysis view
           if (view === 'analysis') {
@@ -193,6 +235,13 @@ createApp({
               }
             }
           } else if (callgraphRoot) {
+            // Restore depth before opening call graph
+            if (depthParam) {
+              const depth = parseInt(depthParam, 10);
+              if (!isNaN(depth) && depth >= 0) {
+                callGraphDepth.value = depth;
+              }
+            }
             await openCallGraph(callgraphRoot, true);
             if (graphType) {
               graphViewType.value = graphType;
@@ -207,8 +256,7 @@ createApp({
               const results = await response.json();
               if (results.length > 0) {
                 const match = funcFile
-                  ? results.find((r) => r.filename === funcFile) ||
-                    results[0]
+                  ? results.find((r) => r.filename === funcFile) || results[0]
                   : results[0];
                 selectedFunction.value = match;
                 selectedFile.value = match.filename;
@@ -270,11 +318,21 @@ createApp({
       showAnalysisView.value = false;
       showJobsView.value = false;
 
+      // Reset file display limit and directory for new project
+      fileDisplayLimit.value = 100;
+      currentDirectory.value = '';
+
+      // Show loading spinner while fetching project info
+      loadingProjectInfo.value = true;
+      projectInfo.value = null;
+
       try {
         const response = await fetch(`/api/v1/projects/${project.name}`);
         projectInfo.value = await response.json();
       } catch (error) {
         console.error('Failed to load project info:', error);
+      } finally {
+        loadingProjectInfo.value = false;
       }
 
       if (!skipUrlUpdate) updateUrl();
@@ -286,17 +344,28 @@ createApp({
       showingAllFunctions.value = false;
       showCallGraph.value = false;
       loadingFileFunctions.value = true;
+      loadingFileAnalytics.value = true;
+      fileAnalytics.value = null;
 
       try {
-        const response = await fetch(
-          `/api/v1/functions?project=${selectedProject.value.name}&filename=${encodeURIComponent(filename)}`
-        );
-        fileFunctions.value = await response.json();
+        // Fetch entities and analytics in parallel
+        const [functionsResponse, analyticsResponse] = await Promise.all([
+          fetch(
+            `/api/v1/functions?project=${selectedProject.value.name}&filename=${encodeURIComponent(filename)}`
+          ),
+          fetch(
+            `/api/v1/files/analytics?project=${selectedProject.value.name}&filename=${encodeURIComponent(filename)}`
+          )
+        ]);
+        fileFunctions.value = await functionsResponse.json();
+        fileAnalytics.value = await analyticsResponse.json();
       } catch (error) {
-        console.error('Failed to load file functions:', error);
+        console.error('Failed to load file data:', error);
         fileFunctions.value = [];
+        fileAnalytics.value = null;
       } finally {
         loadingFileFunctions.value = false;
+        loadingFileAnalytics.value = false;
       }
       if (!skipUrlUpdate) updateUrl();
     };
@@ -304,6 +373,7 @@ createApp({
     const clearFile = () => {
       selectedFile.value = null;
       fileFunctions.value = [];
+      fileAnalytics.value = null;
       selectedFunction.value = null;
       showingAllFunctions.value = false;
       updateUrl();
@@ -315,6 +385,9 @@ createApp({
       selectedFunction.value = null;
       showCallGraph.value = false;
       loadingAllFunctions.value = true;
+
+      // Reset function display limit for new load
+      functionDisplayLimit.value = 100;
 
       try {
         const response = await fetch(
@@ -393,7 +466,8 @@ createApp({
     };
 
     const navigateAutocomplete = (direction) => {
-      if (!showAutocomplete.value || searchSuggestions.value.length === 0) return;
+      if (!showAutocomplete.value || searchSuggestions.value.length === 0)
+        return;
 
       autocompleteIndex.value += direction;
 
@@ -405,7 +479,10 @@ createApp({
     };
 
     const selectAutocompleteItem = () => {
-      if (autocompleteIndex.value >= 0 && autocompleteIndex.value < searchSuggestions.value.length) {
+      if (
+        autocompleteIndex.value >= 0 &&
+        autocompleteIndex.value < searchSuggestions.value.length
+      ) {
         selectSuggestion(searchSuggestions.value[autocompleteIndex.value]);
       } else {
         searchFunctions();
@@ -436,11 +513,15 @@ createApp({
 
       // If no project selected and function has project info, select the project first
       if (!selectedProject.value && fn.project_id) {
-        const matchingProject = projects.value.find(p => p.project_id === fn.project_id);
+        const matchingProject = projects.value.find(
+          (p) => p.project_id === fn.project_id
+        );
         if (matchingProject) {
           selectedProject.value = matchingProject;
           try {
-            const projResponse = await fetch(`/api/v1/projects/${matchingProject.name}`);
+            const projResponse = await fetch(
+              `/api/v1/projects/${matchingProject.name}`
+            );
             projectInfo.value = await projResponse.json();
           } catch (error) {
             console.error('Failed to load project info:', error);
@@ -458,7 +539,8 @@ createApp({
         );
         const results = await response.json();
         if (results.length > 0) {
-          selectedFunction.value = results.find((r) => r.id === fn.id) || results[0];
+          selectedFunction.value =
+            results.find((r) => r.id === fn.id) || results[0];
         } else {
           selectedFunction.value = fn;
         }
@@ -480,10 +562,16 @@ createApp({
       selectedInlineGraphNode.value = null;
 
       // If this is a class or struct, fetch its members
-      if (selectedFunction.value && (selectedFunction.value.type === 'class' || selectedFunction.value.type === 'struct')) {
+      if (
+        selectedFunction.value &&
+        (selectedFunction.value.type === 'class' ||
+          selectedFunction.value.type === 'struct')
+      ) {
         loadingClassMembers.value = true;
         try {
-          const membersResponse = await fetch(`/api/v1/functions/${selectedFunction.value.id}/members`);
+          const membersResponse = await fetch(
+            `/api/v1/functions/${selectedFunction.value.id}/members`
+          );
           const membersData = await membersResponse.json();
           classMembers.value = membersData.members || [];
         } catch (error) {
@@ -632,16 +720,206 @@ createApp({
       return groups;
     });
 
+    // Computed property for displayed files (paginated for large projects)
+    const displayedFiles = Vue.computed(() => {
+      if (!projectInfo.value?.files) return [];
+      return projectInfo.value.files.slice(0, fileDisplayLimit.value);
+    });
+
+    const hasMoreFiles = Vue.computed(() => {
+      if (!projectInfo.value?.files) return false;
+      return projectInfo.value.files.length > fileDisplayLimit.value;
+    });
+
+    const remainingFilesCount = Vue.computed(() => {
+      if (!projectInfo.value?.files) return 0;
+      return projectInfo.value.files.length - fileDisplayLimit.value;
+    });
+
+    const showMoreFiles = () => {
+      fileDisplayLimit.value += FILE_DISPLAY_INCREMENT;
+    };
+
+    const showAllFiles = () => {
+      if (projectInfo.value?.files) {
+        fileDisplayLimit.value = projectInfo.value.files.length;
+      }
+    };
+
+    // Computed property for directory contents at current path
+    const directoryContents = Vue.computed(() => {
+      if (!projectInfo.value?.files) return { directories: [], files: [] };
+
+      const currentPath = currentDirectory.value;
+      const prefix = currentPath ? currentPath + '/' : '';
+      const prefixLen = prefix.length;
+
+      const directories = new Map(); // dirname -> { name, fileCount, entityCount }
+      const files = [];
+
+      for (const file of projectInfo.value.files) {
+        // Skip files not in current directory
+        if (currentPath && !file.filename.startsWith(prefix)) continue;
+        if (!currentPath && file.filename.startsWith('/')) continue;
+
+        // Get the relative path from current directory
+        const relativePath = currentPath
+          ? file.filename.slice(prefixLen)
+          : file.filename;
+
+        // Check if this file is in a subdirectory
+        const slashIndex = relativePath.indexOf('/');
+
+        if (slashIndex !== -1) {
+          // It's in a subdirectory - extract the directory name
+          const dirName = relativePath.slice(0, slashIndex);
+          if (!directories.has(dirName)) {
+            directories.set(dirName, {
+              name: dirName,
+              fileCount: 0,
+              entityCount: 0
+            });
+          }
+          const dir = directories.get(dirName);
+          dir.fileCount++;
+          dir.entityCount += parseInt(file.function_count, 10) || 0;
+        } else {
+          // It's a file in the current directory
+          files.push(file);
+        }
+      }
+
+      // Sort directories and files alphabetically
+      const sortedDirs = Array.from(directories.values()).sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+      const sortedFiles = files.sort((a, b) => {
+        const nameA = currentPath ? a.filename.slice(prefixLen) : a.filename;
+        const nameB = currentPath ? b.filename.slice(prefixLen) : b.filename;
+        return nameA.localeCompare(nameB);
+      });
+
+      return { directories: sortedDirs, files: sortedFiles };
+    });
+
+    // Navigate into a directory
+    const navigateToDirectory = (dirName) => {
+      if (currentDirectory.value) {
+        currentDirectory.value = currentDirectory.value + '/' + dirName;
+      } else {
+        currentDirectory.value = dirName;
+      }
+      // Reset file display limit when navigating
+      fileDisplayLimit.value = 100;
+      updateUrl();
+    };
+
+    // Navigate up one directory level
+    const navigateUp = () => {
+      const current = currentDirectory.value;
+      const lastSlash = current.lastIndexOf('/');
+      if (lastSlash === -1) {
+        currentDirectory.value = '';
+      } else {
+        currentDirectory.value = current.slice(0, lastSlash);
+      }
+      fileDisplayLimit.value = 100;
+      updateUrl();
+    };
+
+    // Navigate to root
+    const navigateToRoot = () => {
+      currentDirectory.value = '';
+      fileDisplayLimit.value = 100;
+      updateUrl();
+    };
+
+    // Navigate to a specific directory path from a full file path
+    const navigateToFileDirectory = (filepath, directoryIndex) => {
+      // Clear current views and go back to project view with directory
+      showingAllFunctions.value = false;
+      selectedFile.value = null;
+      selectedFunction.value = null;
+      fileFunctions.value = [];
+      fileAnalytics.value = null;
+
+      const parts = filepath.split('/');
+      // directoryIndex is 0-based index into path parts (not including filename)
+      // -1 means navigate to root
+      if (directoryIndex < 0) {
+        currentDirectory.value = '';
+      } else {
+        currentDirectory.value = parts.slice(0, directoryIndex + 1).join('/');
+      }
+      fileDisplayLimit.value = 100;
+      updateUrl();
+    };
+
+    // Get path parts for a filename (for clickable path segments)
+    const getFilePathParts = (filename) => {
+      if (!filename) return [];
+      const parts = filename.split('/');
+      // Return all parts except the last one (the filename itself)
+      return parts.slice(0, -1);
+    };
+
+    // Get just the filename from a path
+    const getFileName = (filename) => {
+      if (!filename) return '';
+      const parts = filename.split('/');
+      return parts[parts.length - 1];
+    };
+
+    // Get breadcrumb parts for current directory
+    const directoryBreadcrumbs = Vue.computed(() => {
+      if (!currentDirectory.value) return [];
+      return currentDirectory.value.split('/');
+    });
+
+    // Navigate to a specific breadcrumb index
+    const navigateToBreadcrumb = (index) => {
+      const parts = currentDirectory.value.split('/');
+      currentDirectory.value = parts.slice(0, index + 1).join('/');
+      fileDisplayLimit.value = 100;
+      updateUrl();
+    };
+
+    // Computed property for displayed functions (paginated for large lists)
+    const displayedFunctions = Vue.computed(() => {
+      if (!allFunctions.value) return [];
+      return allFunctions.value.slice(0, functionDisplayLimit.value);
+    });
+
+    const hasMoreFunctions = Vue.computed(() => {
+      if (!allFunctions.value) return false;
+      return allFunctions.value.length > functionDisplayLimit.value;
+    });
+
+    const remainingFunctionsCount = Vue.computed(() => {
+      if (!allFunctions.value) return 0;
+      return allFunctions.value.length - functionDisplayLimit.value;
+    });
+
+    const showMoreFunctions = () => {
+      functionDisplayLimit.value += FUNCTION_DISPLAY_INCREMENT;
+    };
+
+    const showAllFunctionsItems = () => {
+      if (allFunctions.value) {
+        functionDisplayLimit.value = allFunctions.value.length;
+      }
+    };
+
     // Format reference type for display
     const formatReferenceType = (type) => {
       const typeLabels = {
-        'variable': 'Variable Declarations',
-        'parameter': 'Function Parameters',
-        'return_type': 'Return Types',
-        'field': 'Field Declarations',
-        'typedef': 'Type Definitions',
-        'macro': 'Macro Definitions',
-        'unknown': 'Other References'
+        variable: 'Variable Declarations',
+        parameter: 'Function Parameters',
+        return_type: 'Return Types',
+        field: 'Field Declarations',
+        typedef: 'Type Definitions',
+        macro: 'Macro Definitions',
+        unknown: 'Other References'
       };
       return typeLabels[type] || type;
     };
@@ -649,8 +927,12 @@ createApp({
     // Navigate to a definition (possibly in another project)
     const navigateToDefinition = async (def) => {
       // If definition is in a different project, switch to that project first
-      if (def.project_name && (!selectedProject.value || selectedProject.value.name !== def.project_name)) {
-        const project = projects.value.find(p => p.name === def.project_name);
+      if (
+        def.project_name &&
+        (!selectedProject.value ||
+          selectedProject.value.name !== def.project_name)
+      ) {
+        const project = projects.value.find((p) => p.name === def.project_name);
         if (project) {
           await selectProject(project, true);
         }
@@ -663,9 +945,13 @@ createApp({
         );
         const results = await response.json();
         if (results.length > 0) {
-          const match = results.find(r => r.id === def.id) ||
-                        results.find(r => r.filename === def.filename && r.start_line === def.start_line) ||
-                        results[0];
+          const match =
+            results.find((r) => r.id === def.id) ||
+            results.find(
+              (r) =>
+                r.filename === def.filename && r.start_line === def.start_line
+            ) ||
+            results[0];
           await selectFunction(match, true);
         }
       } catch (error) {
@@ -694,13 +980,17 @@ createApp({
       selectedGraphNode.value = null;
 
       try {
+        // Always fetch unlimited depth - we filter client-side for instant depth changes
         const response = await fetch(
-          `/api/v1/functions/${encodeURIComponent(functionName)}/callgraph?project=${selectedProject.value.name}&depth=3`
+          `/api/v1/functions/${encodeURIComponent(functionName)}/callgraph?project=${selectedProject.value.name}&depth=0`
         );
         const data = await response.json();
         if (!response.ok) {
           // API returned an error - store it so we can show an appropriate message
-          callGraphData.value = { error: data.error || 'Failed to load call graph', notFound: response.status === 404 };
+          callGraphData.value = {
+            error: data.error || 'Failed to load call graph',
+            notFound: response.status === 404
+          };
         } else {
           callGraphData.value = data;
         }
@@ -728,6 +1018,34 @@ createApp({
         simulation.stop();
       }
       updateUrl();
+    };
+
+    // Change call graph depth and re-render (no reload needed - we have full data)
+    const setCallGraphDepth = async (newDepth) => {
+      callGraphDepth.value = newDepth;
+      // Just re-render with new depth filter - data is already loaded
+      if (
+        callGraphData.value &&
+        showCallGraph.value &&
+        graphViewType.value === 'callgraph'
+      ) {
+        await nextTick();
+        renderGraph();
+      }
+      // Update URL to reflect new depth
+      updateUrl();
+    };
+
+    // Change inline call graph depth and reload from server
+    const setInlineCallGraphDepth = async (newDepth) => {
+      const oldDepth = inlineCallGraphDepth.value;
+      inlineCallGraphDepth.value = newDepth;
+
+      // If we have data and are on callgraph tab, update the graph incrementally (client-side)
+      if (inlineCallGraphData.value && activeTab.value === 'callgraph') {
+        await nextTick();
+        updateInlineCallGraphDepth(oldDepth, newDepth);
+      }
     };
 
     // Switch between graph view types
@@ -758,7 +1076,10 @@ createApp({
         );
         const data = await response.json();
         if (!response.ok) {
-          callGraphData.value = { error: data.error || 'Failed to load tree', notFound: response.status === 404 };
+          callGraphData.value = {
+            error: data.error || 'Failed to load tree',
+            notFound: response.status === 404
+          };
         } else {
           treeData.value = data;
         }
@@ -894,12 +1215,12 @@ createApp({
       const adjList = new Map();
       const inDegree = new Map();
 
-      nodes.forEach(n => {
+      nodes.forEach((n) => {
         adjList.set(n.id, []);
         inDegree.set(n.id, 0);
       });
 
-      edges.forEach(e => {
+      edges.forEach((e) => {
         if (adjList.has(e.from)) {
           adjList.get(e.from).push(e.to);
         }
@@ -912,7 +1233,7 @@ createApp({
       const levels = new Map();
       const queue = [];
 
-      nodes.forEach(n => {
+      nodes.forEach((n) => {
         if (inDegree.get(n.id) === 0) {
           queue.push(n.id);
           levels.set(n.id, 0);
@@ -927,7 +1248,10 @@ createApp({
           if (!levels.has(neighbor)) {
             levels.set(neighbor, currentLevel + 1);
           } else {
-            levels.set(neighbor, Math.max(levels.get(neighbor), currentLevel + 1));
+            levels.set(
+              neighbor,
+              Math.max(levels.get(neighbor), currentLevel + 1)
+            );
           }
           inDegree.set(neighbor, inDegree.get(neighbor) - 1);
           if (inDegree.get(neighbor) === 0) {
@@ -937,7 +1261,7 @@ createApp({
       }
 
       // Handle nodes not reached (cycles)
-      nodes.forEach(n => {
+      nodes.forEach((n) => {
         if (!levels.has(n.id)) {
           levels.set(n.id, 0);
         }
@@ -945,7 +1269,7 @@ createApp({
 
       // Group nodes by level
       const levelGroups = new Map();
-      nodes.forEach(n => {
+      nodes.forEach((n) => {
         const level = levels.get(n.id);
         if (!levelGroups.has(level)) {
           levelGroups.set(level, []);
@@ -958,7 +1282,8 @@ createApp({
       const maxLevel = Math.max(...levels.values());
 
       levelGroups.forEach((levelNodes, level) => {
-        const totalWidth = levelNodes.length * nodeWidth + (levelNodes.length - 1) * nodeGap;
+        const totalWidth =
+          levelNodes.length * nodeWidth + (levelNodes.length - 1) * nodeGap;
         const startX = (width - totalWidth) / 2;
 
         levelNodes.forEach((node, i) => {
@@ -972,15 +1297,15 @@ createApp({
       // Draw edges
       const linkGroup = flowchartG.append('g').attr('class', 'flowchart-links');
 
-      edges.forEach(edge => {
+      edges.forEach((edge) => {
         const fromPos = nodePositions.get(edge.from);
         const toPos = nodePositions.get(edge.to);
 
         if (!fromPos || !toPos) return;
 
         // Calculate path based on relative positions
-        const fromNode = nodes.find(n => n.id === edge.from);
-        const toNode = nodes.find(n => n.id === edge.to);
+        const fromNode = nodes.find((n) => n.id === edge.from);
+        const toNode = nodes.find((n) => n.id === edge.to);
 
         let startY = fromPos.y + nodeHeight / 2;
         let endY = toPos.y - nodeHeight / 2;
@@ -1003,11 +1328,14 @@ createApp({
         if (toPos.y <= fromPos.y) {
           // Back edge - curve around
           const midX = Math.max(fromPos.x, toPos.x) + nodeWidth;
-          path.attr('d', `
+          path.attr(
+            'd',
+            `
             M ${fromPos.x + nodeWidth / 2} ${fromPos.y}
             Q ${midX} ${fromPos.y}, ${midX} ${(fromPos.y + toPos.y) / 2}
             Q ${midX} ${toPos.y}, ${toPos.x + nodeWidth / 2} ${toPos.y}
-          `);
+          `
+          );
         } else {
           // Forward edge - straight or slight curve
           const dx = toPos.x - fromPos.x;
@@ -1017,11 +1345,14 @@ createApp({
           } else {
             // Curved path
             const midY = (startY + endY) / 2;
-            path.attr('d', `
+            path.attr(
+              'd',
+              `
               M ${fromPos.x} ${startY}
               Q ${fromPos.x} ${midY}, ${(fromPos.x + toPos.x) / 2} ${midY}
               Q ${toPos.x} ${midY}, ${toPos.x} ${endY}
-            `);
+            `
+            );
           }
         }
 
@@ -1045,7 +1376,7 @@ createApp({
       // Draw nodes
       const nodeGroup = flowchartG.append('g').attr('class', 'flowchart-nodes');
 
-      nodes.forEach(node => {
+      nodes.forEach((node) => {
         const pos = nodePositions.get(node.id);
         if (!pos) return;
 
@@ -1080,12 +1411,15 @@ createApp({
             // Diamond for decisions
             const diamondSize = nodeHeight * 0.8;
             g.append('polygon')
-              .attr('points', `
+              .attr(
+                'points',
+                `
                 0,${-diamondSize}
                 ${diamondSize},0
                 0,${diamondSize}
                 ${-diamondSize},0
-              `)
+              `
+              )
               .attr('class', 'flowchart-shape-diamond');
             break;
 
@@ -1095,14 +1429,17 @@ createApp({
             const hh = nodeHeight / 2;
             const indent = 15;
             g.append('polygon')
-              .attr('points', `
+              .attr(
+                'points',
+                `
                 ${-hw + indent},${-hh}
                 ${hw - indent},${-hh}
                 ${hw},0
                 ${hw - indent},${hh}
                 ${-hw + indent},${hh}
                 ${-hw},0
-              `)
+              `
+              )
               .attr('class', 'flowchart-shape-hexagon');
             break;
 
@@ -1133,9 +1470,10 @@ createApp({
         // Add label
         const label = node.label || node.type;
         const maxLabelLength = 18;
-        const displayLabel = label.length > maxLabelLength
-          ? label.substring(0, maxLabelLength - 2) + '...'
-          : label;
+        const displayLabel =
+          label.length > maxLabelLength
+            ? label.substring(0, maxLabelLength - 2) + '...'
+            : label;
 
         g.append('text')
           .attr('class', 'flowchart-label')
@@ -1168,7 +1506,7 @@ createApp({
         flowchartZoom.transform,
         d3.zoomIdentity
           .translate(
-            width / 2 - bounds.x * scale - bounds.width * scale / 2,
+            width / 2 - bounds.x * scale - (bounds.width * scale) / 2,
             50
           )
           .scale(scale)
@@ -1190,16 +1528,28 @@ createApp({
 
     const flowchartResetZoom = () => {
       if (flowchartSvgElement && flowchartZoom) {
-        flowchartSvgElement.transition().call(flowchartZoom.transform, d3.zoomIdentity);
+        flowchartSvgElement
+          .transition()
+          .call(flowchartZoom.transform, d3.zoomIdentity);
       }
     };
 
     // Load inline call graph for function detail tab
     const loadInlineCallGraph = async () => {
-      if (!selectedFunction.value) return;
+      console.log('loadInlineCallGraph called', {
+        hasSelectedFunction: !!selectedFunction.value,
+        symbol: selectedFunction.value?.symbol,
+        hasExistingData: !!inlineCallGraphData.value
+      });
+
+      if (!selectedFunction.value) {
+        console.log('No selected function, returning');
+        return;
+      }
 
       // If data already loaded, just re-render the graph
       if (inlineCallGraphData.value) {
+        console.log('Data already loaded, re-rendering');
         await nextTick();
         setTimeout(() => {
           renderInlineCallGraph();
@@ -1212,24 +1562,37 @@ createApp({
       selectedInlineGraphNode.value = null;
 
       try {
-        const response = await fetch(
-          `/api/v1/functions/${encodeURIComponent(selectedFunction.value.symbol)}/callgraph?project=${selectedProject.value.name}&depth=3`
-        );
+        // Fetch with unlimited depth (0) - client-side filtering handles display depth
+        const url = `/api/v1/functions/${encodeURIComponent(selectedFunction.value.symbol)}/callgraph?project=${selectedProject.value.name}&depth=0`;
+        console.log('Fetching call graph from:', url);
+
+        const response = await fetch(url);
+        console.log('Response status:', response.status, response.ok);
 
         if (!response.ok) {
           const error = await response.json();
-          inlineCallGraphError.value = error.error || 'Failed to load call graph';
+          console.log('Error response:', error);
+          inlineCallGraphError.value =
+            error.error || 'Failed to load call graph';
           return;
         }
 
-        inlineCallGraphData.value = await response.json();
+        const data = await response.json();
+        console.log('Call graph data received:', {
+          root: data.root,
+          nodeCount: data.nodes?.length,
+          edgeCount: data.edges?.length
+        });
+        inlineCallGraphData.value = data;
       } catch (error) {
         console.error('Failed to load inline call graph:', error);
         inlineCallGraphError.value = 'Failed to load call graph';
       } finally {
+        console.log('Finally block, setting loadingInlineCallGraph to false');
         loadingInlineCallGraph.value = false;
         await nextTick();
         setTimeout(() => {
+          console.log('setTimeout callback for renderInlineCallGraph');
           renderInlineCallGraph();
         }, 50);
       }
@@ -1242,13 +1605,15 @@ createApp({
       selectedInlineGraphNode.value = null;
 
       try {
+        // Fetch with unlimited depth (0) - client-side filtering handles display depth
         const response = await fetch(
-          `/api/v1/functions/${encodeURIComponent(symbol)}/callgraph?project=${selectedProject.value.name}&depth=3`
+          `/api/v1/functions/${encodeURIComponent(symbol)}/callgraph?project=${selectedProject.value.name}&depth=0`
         );
 
         if (!response.ok) {
           const error = await response.json();
-          inlineCallGraphError.value = error.error || 'Failed to load call graph';
+          inlineCallGraphError.value =
+            error.error || 'Failed to load call graph';
           return;
         }
 
@@ -1267,6 +1632,12 @@ createApp({
 
     // Render inline call graph using D3
     const renderInlineCallGraph = () => {
+      console.log('renderInlineCallGraph called', {
+        hasData: !!inlineCallGraphData.value,
+        hasSvgRef: !!inlineGraphSvg.value,
+        nodeCount: inlineCallGraphData.value?.nodes?.length,
+        edgeCount: inlineCallGraphData.value?.edges?.length
+      });
       if (!inlineCallGraphData.value || !inlineGraphSvg.value) {
         console.log('Missing inline call graph data or SVG ref');
         return;
@@ -1308,9 +1679,89 @@ createApp({
         .attr('d', 'M 0,-5 L 10,0 L 0,5')
         .attr('class', 'graph-arrow');
 
-      const nodes = inlineCallGraphData.value.nodes;
-      const edges = inlineCallGraphData.value.edges;
+      // Get full data from cache (fetched with unlimited depth)
+      const allNodes = inlineCallGraphData.value.nodes || [];
+      const allEdges = inlineCallGraphData.value.edges || [];
       const rootId = inlineCallGraphData.value.root;
+
+      // Filter nodes by depth using BFS from root
+      const maxDepth = inlineCallGraphDepth.value; // 0 means unlimited
+      const allowedNodeIds = new Set();
+
+      if (maxDepth === 0) {
+        // Unlimited - include all nodes
+        allNodes.forEach((n) => allowedNodeIds.add(n.id));
+      } else {
+        // BFS to find nodes within depth
+        // We traverse outgoing edges (callees) from root to limit depth
+        const visited = new Set();
+        const queue = [{ id: rootId, depth: 0 }];
+
+        // Build adjacency list from edges (caller -> callees only)
+        const calleeAdjacency = new Map();
+        const callerAdjacency = new Map();
+        allEdges.forEach((e) => {
+          // Forward direction: from -> to (callees)
+          if (!calleeAdjacency.has(e.from)) {
+            calleeAdjacency.set(e.from, []);
+          }
+          calleeAdjacency.get(e.from).push(e.to);
+          // Reverse direction: to -> from (callers)
+          if (!callerAdjacency.has(e.to)) {
+            callerAdjacency.set(e.to, []);
+          }
+          callerAdjacency.get(e.to).push(e.from);
+        });
+
+        // BFS for callees (functions called by root)
+        while (queue.length > 0) {
+          const { id, depth } = queue.shift();
+
+          if (visited.has(id)) continue;
+          visited.add(id);
+          allowedNodeIds.add(id);
+
+          // Only explore callees if we haven't reached max depth
+          if (depth < maxDepth) {
+            const callees = calleeAdjacency.get(id) || [];
+            for (const calleeId of callees) {
+              if (!visited.has(calleeId)) {
+                queue.push({ id: calleeId, depth: depth + 1 });
+              }
+            }
+          }
+        }
+
+        // Also do BFS for callers (functions that call root) with same depth limit
+        const callerVisited = new Set();
+        const callerQueue = [{ id: rootId, depth: 0 }];
+
+        while (callerQueue.length > 0) {
+          const { id, depth } = callerQueue.shift();
+
+          if (callerVisited.has(id)) continue;
+          callerVisited.add(id);
+          allowedNodeIds.add(id);
+
+          // Only explore callers if we haven't reached max depth
+          if (depth < maxDepth) {
+            const callers = callerAdjacency.get(id) || [];
+            for (const callerId of callers) {
+              if (!callerVisited.has(callerId)) {
+                callerQueue.push({ id: callerId, depth: depth + 1 });
+              }
+            }
+          }
+        }
+      }
+
+      // Filter nodes and edges based on allowed nodes
+      const nodes = allNodes
+        .filter((n) => allowedNodeIds.has(n.id))
+        .map((n) => ({ ...n })); // Deep copy for D3
+      const edges = allEdges.filter(
+        (e) => allowedNodeIds.has(e.from) && allowedNodeIds.has(e.to)
+      );
 
       // Create links
       const links = edges
@@ -1363,10 +1814,15 @@ createApp({
           selectedInlineGraphNode.value = d;
 
           // Update selected state
-          inlineGraphG.selectAll('.graph-node').classed('selected', (n) => n.id === d.id);
+          inlineGraphG
+            .selectAll('.graph-node')
+            .classed('selected', (n) => n.id === d.id);
 
           // Highlight connected links
-          link.classed('highlighted', (l) => l.source.id === d.id || l.target.id === d.id);
+          link.classed(
+            'highlighted',
+            (l) => l.source.id === d.id || l.target.id === d.id
+          );
         });
 
       node
@@ -1419,6 +1875,212 @@ createApp({
       });
     };
 
+    // Helper function to compute allowed nodes at a given depth
+    const computeAllowedNodes = (depth) => {
+      if (!inlineCallGraphData.value) return new Set();
+
+      const allNodes = inlineCallGraphData.value.nodes || [];
+      const allEdges = inlineCallGraphData.value.edges || [];
+      const rootId = inlineCallGraphData.value.root;
+      const allowedNodeIds = new Set();
+
+      if (depth === 0) {
+        // Unlimited - include all nodes
+        allNodes.forEach((n) => allowedNodeIds.add(n.id));
+      } else {
+        // Build adjacency lists
+        const calleeAdjacency = new Map();
+        const callerAdjacency = new Map();
+        allEdges.forEach((e) => {
+          if (!calleeAdjacency.has(e.from)) calleeAdjacency.set(e.from, []);
+          calleeAdjacency.get(e.from).push(e.to);
+          if (!callerAdjacency.has(e.to)) callerAdjacency.set(e.to, []);
+          callerAdjacency.get(e.to).push(e.from);
+        });
+
+        // BFS for callees
+        const visited = new Set();
+        const queue = [{ id: rootId, depth: 0 }];
+        while (queue.length > 0) {
+          const { id, depth: d } = queue.shift();
+          if (visited.has(id)) continue;
+          visited.add(id);
+          allowedNodeIds.add(id);
+          if (d < depth) {
+            const callees = calleeAdjacency.get(id) || [];
+            for (const calleeId of callees) {
+              if (!visited.has(calleeId))
+                queue.push({ id: calleeId, depth: d + 1 });
+            }
+          }
+        }
+
+        // BFS for callers
+        const callerVisited = new Set();
+        const callerQueue = [{ id: rootId, depth: 0 }];
+        while (callerQueue.length > 0) {
+          const { id, depth: d } = callerQueue.shift();
+          if (callerVisited.has(id)) continue;
+          callerVisited.add(id);
+          allowedNodeIds.add(id);
+          if (d < depth) {
+            const callers = callerAdjacency.get(id) || [];
+            for (const callerId of callers) {
+              if (!callerVisited.has(callerId))
+                callerQueue.push({ id: callerId, depth: d + 1 });
+            }
+          }
+        }
+      }
+      return allowedNodeIds;
+    };
+
+    // Update call graph when depth changes (incremental add/remove)
+    const updateInlineCallGraphDepth = (oldDepth, newDepth) => {
+      if (!inlineCallGraphData.value || !inlineGraphG || !inlineSimulation) {
+        // No graph rendered yet, do full render
+        renderInlineCallGraph();
+        return;
+      }
+
+      const allNodes = inlineCallGraphData.value.nodes || [];
+      const allEdges = inlineCallGraphData.value.edges || [];
+      const rootId = inlineCallGraphData.value.root;
+
+      // Compute which nodes should be visible at the new depth
+      const allowedNodeIds = computeAllowedNodes(newDepth);
+
+      // Filter to get new nodes and edges
+      const nodes = allNodes
+        .filter((n) => allowedNodeIds.has(n.id))
+        .map((n) => {
+          // Preserve position if node already exists in simulation
+          const existing = inlineSimulation
+            .nodes()
+            .find((sn) => sn.id === n.id);
+          if (existing) {
+            return {
+              ...n,
+              x: existing.x,
+              y: existing.y,
+              vx: existing.vx,
+              vy: existing.vy
+            };
+          }
+          return { ...n };
+        });
+
+      const edges = allEdges.filter(
+        (e) => allowedNodeIds.has(e.from) && allowedNodeIds.has(e.to)
+      );
+
+      const links = edges
+        .map((e) => ({
+          source: nodes.find((n) => n.id === e.from),
+          target: nodes.find((n) => n.id === e.to),
+          line: e.line
+        }))
+        .filter((l) => l.source && l.target);
+
+      // Update simulation with new nodes
+      inlineSimulation.nodes(nodes);
+      inlineSimulation.force('link').links(links);
+
+      // Update links with D3 data join
+      const link = inlineGraphG
+        .select('g:first-child')
+        .selectAll('line')
+        .data(links, (d) => `${d.source.id}-${d.target.id}`);
+
+      link.exit().transition().duration(300).style('opacity', 0).remove();
+
+      const linkEnter = link
+        .enter()
+        .append('line')
+        .attr('class', 'graph-link')
+        .attr('marker-end', 'url(#inline-arrowhead)')
+        .style('opacity', 0);
+
+      linkEnter.transition().duration(300).style('opacity', 1);
+
+      const allLinks = linkEnter.merge(link);
+
+      // Update nodes with D3 data join
+      const node = inlineGraphG
+        .select('g:nth-child(2)')
+        .selectAll('g.graph-node')
+        .data(nodes, (d) => d.id);
+
+      node.exit().transition().duration(300).style('opacity', 0).remove();
+
+      const nodeEnter = node
+        .enter()
+        .append('g')
+        .attr('class', (d) => `graph-node ${d.id === rootId ? 'root' : ''}`)
+        .style('opacity', 0)
+        .call(
+          d3
+            .drag()
+            .on('start', (event, d) => {
+              if (!event.active) inlineSimulation.alphaTarget(0.3).restart();
+              d.fx = d.x;
+              d.fy = d.y;
+            })
+            .on('drag', (event, d) => {
+              d.fx = event.x;
+              d.fy = event.y;
+            })
+            .on('end', (event, d) => {
+              if (!event.active) inlineSimulation.alphaTarget(0);
+              d.fx = null;
+              d.fy = null;
+            })
+        )
+        .on('click', (event, d) => {
+          event.stopPropagation();
+          selectedInlineGraphNode.value = d;
+          inlineGraphG
+            .selectAll('.graph-node')
+            .classed('selected', (n) => n.id === d.id);
+          allLinks.classed(
+            'highlighted',
+            (l) => l.source.id === d.id || l.target.id === d.id
+          );
+        });
+
+      nodeEnter
+        .append('circle')
+        .attr('r', (d) => (d.id === rootId ? 18 : 14))
+        .attr('fill', (d) => (d.id === rootId ? '#fce4ec' : '#e3f2fd'))
+        .attr('stroke', (d) => (d.id === rootId ? '#e91e63' : '#2196f3'));
+
+      nodeEnter
+        .append('text')
+        .attr('dy', 30)
+        .attr('text-anchor', 'middle')
+        .text((d) =>
+          d.symbol.length > 20 ? d.symbol.substring(0, 17) + '...' : d.symbol
+        );
+
+      nodeEnter.transition().duration(300).style('opacity', 1);
+
+      const allNodes2 = nodeEnter.merge(node);
+
+      // Update tick handler
+      inlineSimulation.on('tick', () => {
+        allLinks
+          .attr('x1', (d) => d.source.x)
+          .attr('y1', (d) => d.source.y)
+          .attr('x2', (d) => d.target.x)
+          .attr('y2', (d) => d.target.y);
+
+        allNodes2.attr('transform', (d) => `translate(${d.x},${d.y})`);
+      });
+
+      // Restart simulation with low alpha to smoothly settle
+      inlineSimulation.alpha(0.3).restart();
+    };
+
     // Inline graph zoom controls
     const inlineGraphZoomIn = () => {
       if (inlineGraphSvgElement && inlineGraphZoom) {
@@ -1434,8 +2096,32 @@ createApp({
 
     const inlineGraphResetZoom = () => {
       if (inlineGraphSvgElement && inlineGraphZoom) {
-        inlineGraphSvgElement.transition().call(inlineGraphZoom.transform, d3.zoomIdentity);
+        inlineGraphSvgElement
+          .transition()
+          .call(inlineGraphZoom.transform, d3.zoomIdentity);
       }
+    };
+
+    // Toggle fullscreen for inline call graph
+    const toggleInlineGraphFullscreen = () => {
+      inlineGraphFullscreen.value = !inlineGraphFullscreen.value;
+      // Re-render after fullscreen change to adjust dimensions
+      nextTick(() => {
+        if (inlineCallGraphData.value) {
+          renderInlineCallGraph();
+        }
+      });
+    };
+
+    // Toggle fullscreen for flowchart
+    const toggleFlowchartFullscreen = () => {
+      flowchartFullscreen.value = !flowchartFullscreen.value;
+      // Re-render after fullscreen change to adjust dimensions
+      nextTick(() => {
+        if (flowchartData.value) {
+          renderFlowchart();
+        }
+      });
     };
 
     // Render tree using D3 tree layout
@@ -1464,17 +2150,16 @@ createApp({
 
       svg.call(zoom);
 
-      g = svg.append('g')
-        .attr('transform', `translate(${width / 2}, 40)`);
+      g = svg.append('g').attr('transform', `translate(${width / 2}, 40)`);
 
       // Convert tree data to D3 hierarchy
-      const childrenKey = graphViewType.value === 'callers' ? 'callers' : 'callees';
+      const childrenKey =
+        graphViewType.value === 'callers' ? 'callers' : 'callees';
 
-      const root = d3.hierarchy(treeData.value, d => d[childrenKey]);
+      const root = d3.hierarchy(treeData.value, (d) => d[childrenKey]);
 
       // Create tree layout - horizontal for better readability
-      const treeLayout = d3.tree()
-        .nodeSize([60, 180]);
+      const treeLayout = d3.tree().nodeSize([60, 180]);
 
       treeLayout(root);
 
@@ -1483,16 +2168,20 @@ createApp({
         .data(root.links())
         .join('path')
         .attr('class', 'tree-link')
-        .attr('d', d3.linkHorizontal()
-          .x(d => d.y)
-          .y(d => d.x)
+        .attr(
+          'd',
+          d3
+            .linkHorizontal()
+            .x((d) => d.y)
+            .y((d) => d.x)
         );
 
       // Draw nodes
-      const node = g.selectAll('.tree-node')
+      const node = g
+        .selectAll('.tree-node')
         .data(root.descendants())
         .join('g')
-        .attr('class', d => {
+        .attr('class', (d) => {
           let classes = 'tree-node';
           if (d.depth === 0) classes += ' root';
           if (d.data.truncated) classes += ' truncated';
@@ -1500,25 +2189,26 @@ createApp({
           if (d.data.notFound) classes += ' not-found';
           return classes;
         })
-        .attr('transform', d => `translate(${d.y},${d.x})`)
+        .attr('transform', (d) => `translate(${d.y},${d.x})`)
         .on('click', (event, d) => {
           event.stopPropagation();
           selectedGraphNode.value = d.data;
 
           // Update selected state
-          g.selectAll('.tree-node').classed('selected', n => n === d);
+          g.selectAll('.tree-node').classed('selected', (n) => n === d);
         });
 
       // Node circles
-      node.append('circle')
-        .attr('r', d => d.depth === 0 ? 12 : 10)
-        .attr('fill', d => {
+      node
+        .append('circle')
+        .attr('r', (d) => (d.depth === 0 ? 12 : 10))
+        .attr('fill', (d) => {
           if (d.depth === 0) return '#fce4ec';
           if (d.data.loop) return '#fce4ec';
           if (d.data.truncated) return '#fff3e0';
           return '#e8f5e9';
         })
-        .attr('stroke', d => {
+        .attr('stroke', (d) => {
           if (d.depth === 0) return '#e91e63';
           if (d.data.loop) return '#9c27b0';
           if (d.data.truncated) return '#ff9800';
@@ -1527,35 +2217,39 @@ createApp({
         .attr('stroke-width', 2);
 
       // Node labels
-      node.append('text')
+      node
+        .append('text')
         .attr('dy', '0.35em')
-        .attr('x', d => d.children ? -15 : 15)
-        .attr('text-anchor', d => d.children ? 'end' : 'start')
-        .text(d => {
+        .attr('x', (d) => (d.children ? -15 : 15))
+        .attr('text-anchor', (d) => (d.children ? 'end' : 'start'))
+        .text((d) => {
           const symbol = d.data.symbol;
           if (symbol.length > 25) return symbol.substring(0, 22) + '...';
           return symbol;
         })
-        .clone(true).lower()
+        .clone(true)
+        .lower()
         .attr('stroke', 'white')
         .attr('stroke-width', 3);
 
       // Add status indicators for special nodes
-      node.filter(d => d.data.truncated)
+      node
+        .filter((d) => d.data.truncated)
         .append('text')
         .attr('class', 'node-status')
         .attr('dy', '0.35em')
-        .attr('x', d => d.children ? 15 : -15)
-        .attr('text-anchor', d => d.children ? 'start' : 'end')
+        .attr('x', (d) => (d.children ? 15 : -15))
+        .attr('text-anchor', (d) => (d.children ? 'start' : 'end'))
         .text('⋯')
         .attr('fill', '#ff9800');
 
-      node.filter(d => d.data.loop)
+      node
+        .filter((d) => d.data.loop)
         .append('text')
         .attr('class', 'node-status')
         .attr('dy', '0.35em')
-        .attr('x', d => d.children ? 15 : -15)
-        .attr('text-anchor', d => d.children ? 'start' : 'end')
+        .attr('x', (d) => (d.children ? 15 : -15))
+        .attr('text-anchor', (d) => (d.children ? 'start' : 'end'))
         .text('↻')
         .attr('fill', '#9c27b0');
 
@@ -1574,7 +2268,10 @@ createApp({
       svg.call(
         zoom.transform,
         d3.zoomIdentity
-          .translate(width / 2 - bounds.x * scale - bounds.width * scale / 2, height / 2 - bounds.y * scale - bounds.height * scale / 2)
+          .translate(
+            width / 2 - bounds.x * scale - (bounds.width * scale) / 2,
+            height / 2 - bounds.y * scale - (bounds.height * scale) / 2
+          )
           .scale(scale)
       );
     };
@@ -1635,9 +2332,64 @@ createApp({
         .attr('d', 'M 0,-5 L 10,0 L 0,5')
         .attr('class', 'graph-arrow');
 
-      const nodes = callGraphData.value.nodes || [];
-      const edges = callGraphData.value.edges || [];
+      // Get full data from cache (fetched with unlimited depth)
+      const allNodes = callGraphData.value.nodes || [];
+      const allEdges = callGraphData.value.edges || [];
       const rootId = callGraphData.value.root;
+
+      // Filter nodes by depth using BFS from root
+      const maxDepth = callGraphDepth.value; // 0 means unlimited
+      const allowedNodeIds = new Set();
+
+      if (maxDepth === 0) {
+        // Unlimited - include all nodes
+        allNodes.forEach((n) => allowedNodeIds.add(n.id));
+      } else {
+        // BFS to find nodes within depth (bidirectional traversal)
+        const visited = new Set();
+        const queue = [{ id: rootId, depth: 0 }];
+
+        // Build bidirectional adjacency list from edges
+        const adjacency = new Map();
+        allEdges.forEach((e) => {
+          // Forward direction: from -> to (callees)
+          if (!adjacency.has(e.from)) {
+            adjacency.set(e.from, []);
+          }
+          adjacency.get(e.from).push(e.to);
+          // Reverse direction: to -> from (callers)
+          if (!adjacency.has(e.to)) {
+            adjacency.set(e.to, []);
+          }
+          adjacency.get(e.to).push(e.from);
+        });
+
+        while (queue.length > 0) {
+          const { id, depth } = queue.shift();
+
+          if (visited.has(id)) continue;
+          visited.add(id);
+          allowedNodeIds.add(id);
+
+          // Only explore neighbors if we haven't reached max depth
+          if (depth < maxDepth) {
+            const neighbors = adjacency.get(id) || [];
+            for (const neighborId of neighbors) {
+              if (!visited.has(neighborId)) {
+                queue.push({ id: neighborId, depth: depth + 1 });
+              }
+            }
+          }
+        }
+      }
+
+      // Filter nodes and edges based on allowed nodes
+      const nodes = allNodes
+        .filter((n) => allowedNodeIds.has(n.id))
+        .map((n) => ({ ...n })); // Deep copy for D3
+      const edges = allEdges.filter(
+        (e) => allowedNodeIds.has(e.from) && allowedNodeIds.has(e.to)
+      );
 
       // Abort if no data to render
       if (nodes.length === 0) {
@@ -1683,10 +2435,7 @@ createApp({
         .selectAll('g')
         .data(nodes)
         .join('g')
-        .attr(
-          'class',
-          (d) => `graph-node ${d.id === rootId ? 'root' : ''}`
-        )
+        .attr('class', (d) => `graph-node ${d.id === rootId ? 'root' : ''}`)
         .call(
           d3
             .drag()
@@ -1699,10 +2448,7 @@ createApp({
           selectedGraphNode.value = d;
 
           // Update selected state
-          g.selectAll('.graph-node').classed(
-            'selected',
-            (n) => n.id === d.id
-          );
+          g.selectAll('.graph-node').classed('selected', (n) => n.id === d.id);
 
           // Highlight connected links
           link.classed(
@@ -1722,9 +2468,7 @@ createApp({
         .attr('dy', 30)
         .attr('text-anchor', 'middle')
         .text((d) =>
-          d.symbol.length > 20
-            ? d.symbol.substring(0, 17) + '...'
-            : d.symbol
+          d.symbol.length > 20 ? d.symbol.substring(0, 17) + '...' : d.symbol
         );
 
       // Update positions on tick
@@ -1875,7 +2619,10 @@ createApp({
       jobPollInterval = setInterval(async () => {
         await loadJobQueue();
         // Stop polling if no active jobs
-        if (jobQueueStats.value.running === 0 && jobQueueStats.value.queued === 0) {
+        if (
+          jobQueueStats.value.running === 0 &&
+          jobQueueStats.value.queued === 0
+        ) {
           stopJobPolling();
         }
       }, 1000);
@@ -1885,6 +2632,111 @@ createApp({
       if (jobPollInterval) {
         clearInterval(jobPollInterval);
         jobPollInterval = null;
+      }
+    };
+
+    // WebSocket connection for real-time job updates
+    const initWebSocket = async () => {
+      if (nesClient) return; // Already initialized
+
+      try {
+        nesClient = new nes.Client(`ws://${window.location.host}`);
+
+        nesClient.onDisconnect = (willReconnect, log) => {
+          console.log('[WS] Disconnected, willReconnect:', willReconnect);
+          wsConnected.value = false;
+          // Fall back to polling if we have active subscriptions
+          if (jobSubscriptions.size > 0) {
+            startJobPolling();
+          }
+        };
+
+        nesClient.onConnect = () => {
+          console.log('[WS] Connected');
+          wsConnected.value = true;
+          // Stop polling since we have WebSocket now
+          stopJobPolling();
+        };
+
+        await nesClient.connect({ reconnect: true, delay: wsReconnectDelay });
+
+        // Subscribe to queue stats for real-time updates
+        await nesClient.subscribe('/jobs/stats', (update) => {
+          jobQueueStats.value = update;
+        });
+
+        console.log('[WS] WebSocket initialized and subscribed to stats');
+      } catch (error) {
+        console.warn(
+          '[WS] WebSocket connection failed, using polling fallback:',
+          error.message
+        );
+        nesClient = null;
+        wsConnected.value = false;
+      }
+    };
+
+    // Subscribe to a specific job's updates via WebSocket
+    const subscribeToJob = async (jobId, onComplete, onError) => {
+      // Store callbacks for this job
+      jobSubscriptions.set(jobId, { onComplete, onError });
+
+      // If WebSocket is connected, subscribe
+      if (nesClient && wsConnected.value) {
+        try {
+          await nesClient.subscribe(`/jobs/${jobId}`, (job) => {
+            handleJobUpdate(job);
+          });
+          console.log(`[WS] Subscribed to job ${jobId}`);
+          return true;
+        } catch (error) {
+          console.warn(
+            `[WS] Failed to subscribe to job ${jobId}:`,
+            error.message
+          );
+        }
+      }
+
+      // Fall back to polling
+      console.log(`[WS] Using polling fallback for job ${jobId}`);
+      pollJobStatus(jobId, onComplete, onError);
+      return false;
+    };
+
+    // Handle job update from WebSocket
+    const handleJobUpdate = (job) => {
+      // Update jobs list
+      const index = jobs.value.findIndex((j) => j.id === job.id);
+      if (index >= 0) {
+        jobs.value[index] = job;
+      } else {
+        jobs.value.unshift(job);
+      }
+
+      // Check for completion callbacks
+      const callbacks = jobSubscriptions.get(job.id);
+      if (callbacks) {
+        if (job.status === 'completed') {
+          callbacks.onComplete(job);
+          unsubscribeFromJob(job.id);
+        } else if (job.status === 'failed') {
+          callbacks.onError(job.error || 'Job failed');
+          unsubscribeFromJob(job.id);
+        }
+      }
+    };
+
+    // Unsubscribe from a job's updates
+    const unsubscribeFromJob = async (jobId) => {
+      jobSubscriptions.delete(jobId);
+
+      if (nesClient && wsConnected.value) {
+        try {
+          await nesClient.unsubscribe(`/jobs/${jobId}`);
+          console.log(`[WS] Unsubscribed from job ${jobId}`);
+        } catch (error) {
+          // Ignore unsubscribe errors
+        }
       }
     };
 
@@ -1907,7 +2759,10 @@ createApp({
 
     // Analysis view functions
     const toggleAnalysisView = async () => {
-      console.log('toggleAnalysisView called, selectedProject:', selectedProject.value);
+      console.log(
+        'toggleAnalysisView called, selectedProject:',
+        selectedProject.value
+      );
       if (!selectedProject.value) return;
 
       showAnalysisView.value = !showAnalysisView.value;
@@ -1953,8 +2808,14 @@ createApp({
       }
     };
 
+    // Track the current analysis request to handle race conditions
+    let currentAnalysisRequestId = 0;
+
     const loadAnalysisDetail = async (type, skipUrlUpdate = false) => {
       if (!selectedProject.value) return;
+
+      // Increment request ID to track this specific request
+      const requestId = ++currentAnalysisRequestId;
 
       loadingAnalysisDetail.value = true;
       analysisDetail.value = null;
@@ -1963,14 +2824,33 @@ createApp({
         const response = await fetch(
           `/api/v1/projects/${selectedProject.value.name}/analysis/${type}`
         );
+
+        // Check if this request is still the current one (user might have clicked another tab)
+        if (requestId !== currentAnalysisRequestId) {
+          return; // Stale request, ignore the response
+        }
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
         analysisDetail.value = await response.json();
       } catch (error) {
         console.error(`Failed to load ${type} analysis:`, error);
+        // Only update state if this is still the current request
+        if (requestId === currentAnalysisRequestId) {
+          analysisDetail.value = null;
+        }
       } finally {
-        loadingAnalysisDetail.value = false;
+        // Only update loading state if this is still the current request
+        if (requestId === currentAnalysisRequestId) {
+          loadingAnalysisDetail.value = false;
+        }
       }
 
-      if (!skipUrlUpdate) updateUrl();
+      if (!skipUrlUpdate && requestId === currentAnalysisRequestId) {
+        updateUrl();
+      }
     };
 
     const setAnalysisTab = async (tab) => {
@@ -2021,6 +2901,11 @@ createApp({
       return date.toLocaleString();
     };
 
+    const formatNumber = (num) => {
+      if (num === null || num === undefined) return '-';
+      return Number(num).toLocaleString();
+    };
+
     const formatDuration = (startStr, endStr) => {
       if (!startStr || !endStr) return '-';
       const start = new Date(startStr);
@@ -2057,8 +2942,7 @@ createApp({
           return;
         }
 
-        importSuccess.value =
-          result.message || 'Project queued for import!';
+        importSuccess.value = result.message || 'Project queued for import!';
 
         // Start polling for job updates
         await loadJobQueue();
@@ -2069,9 +2953,9 @@ createApp({
           closeImportModal();
         }, 1500);
 
-        // Poll for job completion to refresh projects list
+        // Subscribe to job updates (WebSocket with polling fallback)
         if (result.job_id) {
-          pollJobStatus(
+          subscribeToJob(
             result.job_id,
             async () => {
               await loadProjects();
@@ -2130,12 +3014,11 @@ createApp({
           return;
         }
 
-        // Start polling for job updates
+        // Load job queue
         await loadJobQueue();
-        startJobPolling();
 
-        // Poll for job completion
-        pollJobStatus(
+        // Subscribe to job updates (WebSocket with polling fallback)
+        subscribeToJob(
           result.job_id,
           async () => {
             // Job completed successfully
@@ -2169,10 +3052,34 @@ createApp({
       await loadJobQueue();
       await parseUrl();
 
-      // Start polling if there are active jobs
-      if (jobQueueStats.value.running > 0 || jobQueueStats.value.queued > 0) {
+      // Initialize WebSocket for real-time job updates
+      await initWebSocket();
+
+      // Fall back to polling if WebSocket not connected and there are active jobs
+      if (
+        !wsConnected.value &&
+        (jobQueueStats.value.running > 0 || jobQueueStats.value.queued > 0)
+      ) {
         startJobPolling();
       }
+
+      // Escape key to close fullscreen
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (inlineGraphFullscreen.value) {
+            inlineGraphFullscreen.value = false;
+            nextTick(() => {
+              if (inlineCallGraphData.value) renderInlineCallGraph();
+            });
+          }
+          if (flowchartFullscreen.value) {
+            flowchartFullscreen.value = false;
+            nextTick(() => {
+              if (flowchartData.value) renderFlowchart();
+            });
+          }
+        }
+      });
     });
 
     return {
@@ -2186,6 +3093,8 @@ createApp({
       selectedFile,
       fileFunctions,
       loadingFileFunctions,
+      fileAnalytics,
+      loadingFileAnalytics,
       showingAllFunctions,
       allFunctions,
       loadingAllFunctions,
@@ -2205,6 +3114,8 @@ createApp({
       selectedGraphNode,
       graphContainer,
       graphSvg,
+      callGraphDepth,
+      setCallGraphDepth,
       graphViewType,
       treeData,
       treeDepth,
@@ -2220,6 +3131,8 @@ createApp({
       inlineGraphContainer,
       inlineGraphSvg,
       selectedInlineGraphNode,
+      inlineCallGraphDepth,
+      setInlineCallGraphDepth,
       searchSuggestions,
       showAutocomplete,
       autocompleteIndex,
@@ -2258,6 +3171,10 @@ createApp({
       inlineGraphZoomIn,
       inlineGraphZoomOut,
       inlineGraphResetZoom,
+      inlineGraphFullscreen,
+      toggleInlineGraphFullscreen,
+      flowchartFullscreen,
+      toggleFlowchartFullscreen,
       onSearchInput,
       navigateAutocomplete,
       selectAutocompleteItem,
@@ -2287,6 +3204,8 @@ createApp({
       toggleJobsView,
       formatDate,
       formatDuration,
+      formatNumber,
+      loadingProjectInfo,
       showAnalysisView,
       analysisData,
       loadingAnalysis,
@@ -2298,7 +3217,30 @@ createApp({
       loadAnalysisDashboard,
       loadAnalysisDetail,
       setAnalysisTab,
-      navigateToFunctionById
+      navigateToFunctionById,
+      // File list pagination
+      displayedFiles,
+      hasMoreFiles,
+      remainingFilesCount,
+      showMoreFiles,
+      showAllFiles,
+      // Function list pagination
+      displayedFunctions,
+      hasMoreFunctions,
+      remainingFunctionsCount,
+      showMoreFunctions,
+      showAllFunctionsItems,
+      // Directory navigation
+      currentDirectory,
+      directoryContents,
+      directoryBreadcrumbs,
+      navigateToDirectory,
+      navigateUp,
+      navigateToRoot,
+      navigateToBreadcrumb,
+      navigateToFileDirectory,
+      getFilePathParts,
+      getFileName
     };
   }
 }).mount('#app');
