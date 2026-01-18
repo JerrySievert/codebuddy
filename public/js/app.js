@@ -1054,15 +1054,14 @@ createApp({
       updateUrl();
     };
 
-    // Change inline call graph depth and reload from server
+    // Change inline call graph depth and re-render
     const setInlineCallGraphDepth = async (newDepth) => {
-      const oldDepth = inlineCallGraphDepth.value;
       inlineCallGraphDepth.value = newDepth;
 
-      // If we have data and are on callgraph tab, update the graph incrementally (client-side)
+      // If we have data and are on callgraph tab, re-render with new depth
       if (inlineCallGraphData.value && activeTab.value === 'callgraph') {
         await nextTick();
-        updateInlineCallGraphDepth(oldDepth, newDepth);
+        renderInlineCallGraph();
       }
     };
 
@@ -1653,17 +1652,32 @@ createApp({
       console.log('renderInlineCallGraph called', {
         hasData: !!inlineCallGraphData.value,
         hasSvgRef: !!inlineGraphSvg.value,
+        svgElement: inlineGraphSvg.value,
         nodeCount: inlineCallGraphData.value?.nodes?.length,
-        edgeCount: inlineCallGraphData.value?.edges?.length
+        edgeCount: inlineCallGraphData.value?.edges?.length,
+        currentDepth: inlineCallGraphDepth.value
       });
       if (!inlineCallGraphData.value || !inlineGraphSvg.value) {
         console.log('Missing inline call graph data or SVG ref');
         return;
       }
 
+      // Log the current state of the SVG before clearing
+      const currentSvgChildren = inlineGraphSvg.value?.childNodes?.length || 0;
+      console.log('[InlineCallGraph] SVG state before clear:', {
+        childCount: currentSvgChildren,
+        hasRunningSimulation: !!inlineSimulation
+      });
+
       const container = inlineGraphContainer.value;
       const width = container.clientWidth || 800;
       const height = container.clientHeight || 600;
+
+      // Stop any running simulation before clearing
+      if (inlineSimulation) {
+        inlineSimulation.stop();
+        inlineSimulation = null;
+      }
 
       // Clear previous graph
       d3.select(inlineGraphSvg.value).selectAll('*').remove();
@@ -1702,84 +1716,117 @@ createApp({
       const allEdges = inlineCallGraphData.value.edges || [];
       const rootId = inlineCallGraphData.value.root;
 
-      // Filter nodes by depth using BFS from root
+      // Filter edges by depth using the depth info returned by server
+      // Each edge has callee_depth (downstream from root) and/or caller_depth (upstream from root)
       const maxDepth = inlineCallGraphDepth.value; // 0 means unlimited
-      const allowedNodeIds = new Set();
 
+      console.log('[InlineCallGraph] Filtering edges:', {
+        totalEdges: allEdges.length,
+        maxDepth,
+        sampleEdge: allEdges[0],
+        hasDepthInfo:
+          allEdges.length > 0 &&
+          (allEdges[0].callee_depth !== undefined ||
+            allEdges[0].caller_depth !== undefined)
+      });
+
+      let filteredEdges;
       if (maxDepth === 0) {
-        // Unlimited - include all nodes
-        allNodes.forEach((n) => allowedNodeIds.add(n.id));
+        // Unlimited - include all edges
+        filteredEdges = allEdges;
       } else {
-        // BFS to find nodes within depth
-        // We traverse outgoing edges (callees) from root to limit depth
-        const visited = new Set();
-        const queue = [{ id: rootId, depth: 0 }];
-
-        // Build adjacency list from edges (caller -> callees only)
-        const calleeAdjacency = new Map();
-        const callerAdjacency = new Map();
-        allEdges.forEach((e) => {
-          // Forward direction: from -> to (callees)
-          if (!calleeAdjacency.has(e.from)) {
-            calleeAdjacency.set(e.from, []);
-          }
-          calleeAdjacency.get(e.from).push(e.to);
-          // Reverse direction: to -> from (callers)
-          if (!callerAdjacency.has(e.to)) {
-            callerAdjacency.set(e.to, []);
-          }
-          callerAdjacency.get(e.to).push(e.from);
+        // Filter edges where at least one depth is within maxDepth
+        // callee_depth: edge is reachable going downstream from root
+        // caller_depth: edge is reachable going upstream from root
+        filteredEdges = allEdges.filter((e) => {
+          const calleeOk = e.callee_depth != null && e.callee_depth <= maxDepth;
+          const callerOk = e.caller_depth != null && e.caller_depth <= maxDepth;
+          return calleeOk || callerOk;
         });
+      }
 
-        // BFS for callees (functions called by root)
-        while (queue.length > 0) {
-          const { id, depth } = queue.shift();
+      console.log('[InlineCallGraph] After filtering:', {
+        filteredEdges: filteredEdges.length,
+        filteredNodes: null, // will be set below
+        maxDepth
+      });
 
-          if (visited.has(id)) continue;
-          visited.add(id);
-          allowedNodeIds.add(id);
+      // Collect node IDs from filtered edges
+      const allowedNodeIds = new Set();
+      allowedNodeIds.add(rootId); // Always include root
+      filteredEdges.forEach((e) => {
+        allowedNodeIds.add(e.from);
+        allowedNodeIds.add(e.to);
+      });
 
-          // Only explore callees if we haven't reached max depth
-          if (depth < maxDepth) {
-            const callees = calleeAdjacency.get(id) || [];
-            for (const calleeId of callees) {
-              if (!visited.has(calleeId)) {
-                queue.push({ id: calleeId, depth: depth + 1 });
-              }
-            }
-          }
-        }
+      // Filter nodes based on allowed node IDs
+      const nodes = allNodes
+        .filter((n) => allowedNodeIds.has(n.id))
+        .map((n) => ({ ...n })); // Deep copy for D3
+      const edges = filteredEdges.filter(
+        (e) => allowedNodeIds.has(e.from) && allowedNodeIds.has(e.to)
+      );
 
-        // Also do BFS for callers (functions that call root) with same depth limit
-        const callerVisited = new Set();
-        const callerQueue = [{ id: rootId, depth: 0 }];
+      console.log('[InlineCallGraph] Final result:', {
+        nodes: nodes.length,
+        edges: edges.length,
+        nodeSymbols: nodes.slice(0, 5).map((n) => n.symbol)
+      });
 
-        while (callerQueue.length > 0) {
-          const { id, depth } = callerQueue.shift();
+      // Calculate depth for each node using BFS from root
+      // Callers are at negative depths (upstream), callees at positive depths (downstream)
+      const nodeDepths = new Map();
+      nodeDepths.set(rootId, 0);
 
-          if (callerVisited.has(id)) continue;
-          callerVisited.add(id);
-          allowedNodeIds.add(id);
+      // Build adjacency lists for BFS
+      const calleeAdj = new Map(); // caller -> [callees]
+      const callerAdj = new Map(); // callee -> [callers]
+      edges.forEach((e) => {
+        if (!calleeAdj.has(e.from)) calleeAdj.set(e.from, []);
+        calleeAdj.get(e.from).push(e.to);
+        if (!callerAdj.has(e.to)) callerAdj.set(e.to, []);
+        callerAdj.get(e.to).push(e.from);
+      });
 
-          // Only explore callers if we haven't reached max depth
-          if (depth < maxDepth) {
-            const callers = callerAdjacency.get(id) || [];
-            for (const callerId of callers) {
-              if (!callerVisited.has(callerId)) {
-                callerQueue.push({ id: callerId, depth: depth + 1 });
-              }
-            }
+      // BFS for callees (positive depth)
+      const calleeQueue = [rootId];
+      while (calleeQueue.length > 0) {
+        const current = calleeQueue.shift();
+        const currentDepth = nodeDepths.get(current);
+        const callees = calleeAdj.get(current) || [];
+        for (const callee of callees) {
+          if (!nodeDepths.has(callee)) {
+            nodeDepths.set(callee, currentDepth + 1);
+            calleeQueue.push(callee);
           }
         }
       }
 
-      // Filter nodes and edges based on allowed nodes
-      const nodes = allNodes
-        .filter((n) => allowedNodeIds.has(n.id))
-        .map((n) => ({ ...n })); // Deep copy for D3
-      const edges = allEdges.filter(
-        (e) => allowedNodeIds.has(e.from) && allowedNodeIds.has(e.to)
-      );
+      // BFS for callers (also positive depth - distance from root)
+      const callerQueue = [rootId];
+      const callerVisited = new Set([rootId]);
+      while (callerQueue.length > 0) {
+        const current = callerQueue.shift();
+        const currentDepth = nodeDepths.get(current);
+        const callers = callerAdj.get(current) || [];
+        for (const caller of callers) {
+          if (!callerVisited.has(caller)) {
+            callerVisited.add(caller);
+            // Only set depth if not already set (prefer callee depth)
+            if (!nodeDepths.has(caller)) {
+              // Callers are also at positive depth (distance from root)
+              nodeDepths.set(caller, currentDepth + 1);
+            }
+            callerQueue.push(caller);
+          }
+        }
+      }
+
+      // Store depth on nodes for color-coding
+      const maxDepthVal = Math.max(...Array.from(nodeDepths.values()));
+      nodes.forEach((n) => {
+        n.depth = nodeDepths.get(n.id) || 0;
+      });
 
       // Create links
       const links = edges
@@ -1790,7 +1837,38 @@ createApp({
         }))
         .filter((l) => l.source && l.target);
 
-      // Create simulation
+      // Color scale for depth visualization
+      const depthColors = [
+        '#e91e63', // depth 0 (root) - pink
+        '#2196f3', // depth 1 - blue
+        '#4caf50', // depth 2 - green
+        '#ff9800', // depth 3 - orange
+        '#9c27b0', // depth 4 - purple
+        '#00bcd4', // depth 5 - cyan
+        '#795548', // depth 6 - brown
+        '#607d8b' // depth 7+ - blue-grey
+      ];
+
+      const depthFills = [
+        '#fce4ec', // depth 0 (root) - light pink
+        '#e3f2fd', // depth 1 - light blue
+        '#e8f5e9', // depth 2 - light green
+        '#fff3e0', // depth 3 - light orange
+        '#f3e5f5', // depth 4 - light purple
+        '#e0f7fa', // depth 5 - light cyan
+        '#efebe9', // depth 6 - light brown
+        '#eceff1' // depth 7+ - light blue-grey
+      ];
+
+      const getDepthColor = (depth) => {
+        return depthColors[Math.min(depth, depthColors.length - 1)];
+      };
+
+      const getDepthFill = (depth) => {
+        return depthFills[Math.min(depth, depthFills.length - 1)];
+      };
+
+      // Create force-directed simulation
       inlineSimulation = d3
         .forceSimulation(nodes)
         .force(
@@ -1798,13 +1876,20 @@ createApp({
           d3
             .forceLink(links)
             .id((d) => d.id)
-            .distance(120)
+            .distance(100)
         )
-        .force('charge', d3.forceManyBody().strength(-400))
+        .force('charge', d3.forceManyBody().strength(-300))
         .force('center', d3.forceCenter(width / 2, height / 2))
-        .force('collision', d3.forceCollide().radius(50));
+        .force('collision', d3.forceCollide().radius(40));
 
       // Draw links
+      console.log('[InlineCallGraph] D3 rendering with:', {
+        linksCount: links.length,
+        nodesCount: nodes.length,
+        maxDepth: maxDepthVal,
+        rootSymbol: nodes.find((n) => n.id === rootId)?.symbol
+      });
+
       const link = inlineGraphG
         .append('g')
         .selectAll('line')
@@ -1813,7 +1898,7 @@ createApp({
         .attr('class', 'graph-link')
         .attr('marker-end', 'url(#inline-arrowhead)');
 
-      // Draw nodes
+      // Draw nodes with depth-based colors
       const node = inlineGraphG
         .append('g')
         .selectAll('g')
@@ -1846,8 +1931,9 @@ createApp({
       node
         .append('circle')
         .attr('r', (d) => (d.id === rootId ? 18 : 14))
-        .attr('fill', (d) => (d.id === rootId ? '#fce4ec' : '#e3f2fd'))
-        .attr('stroke', (d) => (d.id === rootId ? '#e91e63' : '#2196f3'));
+        .attr('fill', (d) => getDepthFill(d.depth))
+        .attr('stroke', (d) => getDepthColor(d.depth))
+        .attr('stroke-width', 2);
 
       node
         .append('text')
@@ -1891,64 +1977,44 @@ createApp({
         inlineGraphG.selectAll('.graph-node').classed('selected', false);
         link.classed('highlighted', false);
       });
+
+      // Verify final DOM state
+      const finalNodeCount = inlineGraphG.selectAll('.graph-node').size();
+      const finalLinkCount = inlineGraphG.selectAll('line').size();
+      console.log('[InlineCallGraph] Final DOM state:', {
+        nodesInDOM: finalNodeCount,
+        linksInDOM: finalLinkCount,
+        expectedNodes: nodes.length,
+        expectedLinks: links.length
+      });
     };
 
     // Helper function to compute allowed nodes at a given depth
+    // Uses server-provided depth information on edges
     const computeAllowedNodes = (depth) => {
       if (!inlineCallGraphData.value) return new Set();
 
-      const allNodes = inlineCallGraphData.value.nodes || [];
       const allEdges = inlineCallGraphData.value.edges || [];
       const rootId = inlineCallGraphData.value.root;
       const allowedNodeIds = new Set();
+      allowedNodeIds.add(rootId); // Always include root
 
       if (depth === 0) {
-        // Unlimited - include all nodes
-        allNodes.forEach((n) => allowedNodeIds.add(n.id));
-      } else {
-        // Build adjacency lists
-        const calleeAdjacency = new Map();
-        const callerAdjacency = new Map();
+        // Unlimited - include all nodes from all edges
         allEdges.forEach((e) => {
-          if (!calleeAdjacency.has(e.from)) calleeAdjacency.set(e.from, []);
-          calleeAdjacency.get(e.from).push(e.to);
-          if (!callerAdjacency.has(e.to)) callerAdjacency.set(e.to, []);
-          callerAdjacency.get(e.to).push(e.from);
+          allowedNodeIds.add(e.from);
+          allowedNodeIds.add(e.to);
         });
-
-        // BFS for callees
-        const visited = new Set();
-        const queue = [{ id: rootId, depth: 0 }];
-        while (queue.length > 0) {
-          const { id, depth: d } = queue.shift();
-          if (visited.has(id)) continue;
-          visited.add(id);
-          allowedNodeIds.add(id);
-          if (d < depth) {
-            const callees = calleeAdjacency.get(id) || [];
-            for (const calleeId of callees) {
-              if (!visited.has(calleeId))
-                queue.push({ id: calleeId, depth: d + 1 });
-            }
+      } else {
+        // Filter edges by depth using server-provided depth info
+        allEdges.forEach((e) => {
+          const calleeOk = e.callee_depth != null && e.callee_depth <= depth;
+          const callerOk = e.caller_depth != null && e.caller_depth <= depth;
+          if (calleeOk || callerOk) {
+            allowedNodeIds.add(e.from);
+            allowedNodeIds.add(e.to);
           }
-        }
-
-        // BFS for callers
-        const callerVisited = new Set();
-        const callerQueue = [{ id: rootId, depth: 0 }];
-        while (callerQueue.length > 0) {
-          const { id, depth: d } = callerQueue.shift();
-          if (callerVisited.has(id)) continue;
-          callerVisited.add(id);
-          allowedNodeIds.add(id);
-          if (d < depth) {
-            const callers = callerAdjacency.get(id) || [];
-            for (const callerId of callers) {
-              if (!callerVisited.has(callerId))
-                callerQueue.push({ id: callerId, depth: d + 1 });
-            }
-          }
-        }
+        });
       }
       return allowedNodeIds;
     };
@@ -2318,6 +2384,12 @@ createApp({
         callGraphData.value.edges?.length
       );
 
+      // Stop any running simulation before clearing
+      if (simulation) {
+        simulation.stop();
+        simulation = null;
+      }
+
       // Clear previous graph
       d3.select(graphSvg.value).selectAll('*').remove();
 
@@ -2355,57 +2427,53 @@ createApp({
       const allEdges = callGraphData.value.edges || [];
       const rootId = callGraphData.value.root;
 
-      // Filter nodes by depth using BFS from root
+      // Filter edges by depth using the depth info returned by server
+      // Each edge has callee_depth (downstream from root) and/or caller_depth (upstream from root)
       const maxDepth = callGraphDepth.value; // 0 means unlimited
-      const allowedNodeIds = new Set();
 
+      console.log('[CallGraph] Filtering edges:', {
+        totalEdges: allEdges.length,
+        maxDepth,
+        sampleEdge: allEdges[0],
+        hasDepthInfo:
+          allEdges.length > 0 &&
+          (allEdges[0].callee_depth !== undefined ||
+            allEdges[0].caller_depth !== undefined)
+      });
+
+      let filteredEdges;
       if (maxDepth === 0) {
-        // Unlimited - include all nodes
-        allNodes.forEach((n) => allowedNodeIds.add(n.id));
+        // Unlimited - include all edges
+        filteredEdges = allEdges;
       } else {
-        // BFS to find nodes within depth (bidirectional traversal)
-        const visited = new Set();
-        const queue = [{ id: rootId, depth: 0 }];
-
-        // Build bidirectional adjacency list from edges
-        const adjacency = new Map();
-        allEdges.forEach((e) => {
-          // Forward direction: from -> to (callees)
-          if (!adjacency.has(e.from)) {
-            adjacency.set(e.from, []);
-          }
-          adjacency.get(e.from).push(e.to);
-          // Reverse direction: to -> from (callers)
-          if (!adjacency.has(e.to)) {
-            adjacency.set(e.to, []);
-          }
-          adjacency.get(e.to).push(e.from);
+        // Filter edges where at least one depth is within maxDepth
+        // callee_depth: edge is reachable going downstream from root
+        // caller_depth: edge is reachable going upstream from root
+        filteredEdges = allEdges.filter((e) => {
+          const calleeOk = e.callee_depth != null && e.callee_depth <= maxDepth;
+          const callerOk = e.caller_depth != null && e.caller_depth <= maxDepth;
+          return calleeOk || callerOk;
         });
-
-        while (queue.length > 0) {
-          const { id, depth } = queue.shift();
-
-          if (visited.has(id)) continue;
-          visited.add(id);
-          allowedNodeIds.add(id);
-
-          // Only explore neighbors if we haven't reached max depth
-          if (depth < maxDepth) {
-            const neighbors = adjacency.get(id) || [];
-            for (const neighborId of neighbors) {
-              if (!visited.has(neighborId)) {
-                queue.push({ id: neighborId, depth: depth + 1 });
-              }
-            }
-          }
-        }
       }
 
-      // Filter nodes and edges based on allowed nodes
+      console.log('[CallGraph] After filtering:', {
+        filteredEdges: filteredEdges.length,
+        maxDepth
+      });
+
+      // Collect node IDs from filtered edges
+      const allowedNodeIds = new Set();
+      allowedNodeIds.add(rootId); // Always include root
+      filteredEdges.forEach((e) => {
+        allowedNodeIds.add(e.from);
+        allowedNodeIds.add(e.to);
+      });
+
+      // Filter nodes based on allowed node IDs
       const nodes = allNodes
         .filter((n) => allowedNodeIds.has(n.id))
         .map((n) => ({ ...n })); // Deep copy for D3
-      const edges = allEdges.filter(
+      const edges = filteredEdges.filter(
         (e) => allowedNodeIds.has(e.from) && allowedNodeIds.has(e.to)
       );
 

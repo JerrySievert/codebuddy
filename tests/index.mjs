@@ -18,3 +18,4 @@ import './lib/mcp_tools.mjs';
 import './lib/api_routes.mjs';
 import './lib/concurrency.mjs';
 import './lib/resources.mjs';
+import './lib/callgraph.mjs';
