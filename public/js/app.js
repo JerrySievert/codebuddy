@@ -131,6 +131,10 @@ createApp({
     const analysisDetail = ref(null);
     const loadingAnalysisDetail = ref(false);
 
+    // Server status state
+    const serverReadOnly = ref(false);
+    const showReadOnlyModal = ref(false);
+
     let simulation = null;
     let svg = null;
     let g = null;
@@ -288,6 +292,20 @@ createApp({
       resetToHome(true);
       parseUrl();
     });
+
+    const loadServerStatus = async () => {
+      try {
+        const response = await fetch('/api/v1/status');
+        const status = await response.json();
+        serverReadOnly.value = status.read_only || false;
+      } catch (error) {
+        console.error('Failed to load server status:', error);
+      }
+    };
+
+    const closeReadOnlyModal = () => {
+      showReadOnlyModal.value = false;
+    };
 
     const loadProjects = async () => {
       try {
@@ -2919,6 +2937,12 @@ createApp({
     };
 
     const importProject = async () => {
+      // Check for read-only mode before attempting import
+      if (serverReadOnly.value) {
+        showReadOnlyModal.value = true;
+        return;
+      }
+
       if (!importPath.value) return;
 
       importing.value = true;
@@ -2996,6 +3020,12 @@ createApp({
     };
 
     const refreshProject = async (projectName) => {
+      // Check for read-only mode before attempting refresh
+      if (serverReadOnly.value) {
+        showReadOnlyModal.value = true;
+        return;
+      }
+
       refreshingProject.value = projectName;
 
       try {
@@ -3048,6 +3078,7 @@ createApp({
     };
 
     onMounted(async () => {
+      await loadServerStatus();
       await loadProjects();
       await loadJobQueue();
       await parseUrl();
@@ -3240,7 +3271,11 @@ createApp({
       navigateToBreadcrumb,
       navigateToFileDirectory,
       getFilePathParts,
-      getFileName
+      getFileName,
+      // Read-only mode
+      serverReadOnly,
+      showReadOnlyModal,
+      closeReadOnlyModal
     };
   }
 }).mount('#app');

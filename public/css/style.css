@@ -98,6 +98,17 @@ header .logo:hover {
   transform: scale(1.05);
 }
 
+.read-only-badge {
+  background: #ff9800;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 header h1 {
   margin: 0;
   font-size: 1.6em;
@@ -1193,6 +1204,27 @@ header h1 {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.read-only-message {
+  text-align: center;
+  padding: 20px;
+}
+
+.read-only-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.read-only-message p {
+  margin: 8px 0;
+  color: #555;
+  line-height: 1.5;
+}
+
+.read-only-message p:first-of-type {
+  font-size: 1.1em;
+  color: #333;
 }
 
 .btn-import {

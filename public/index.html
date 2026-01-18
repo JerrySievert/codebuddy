@@ -35,6 +35,13 @@
               @click="resetToHome"
             />
             <h1>CodeBuddy</h1>
+            <span
+              v-if="serverReadOnly"
+              class="read-only-badge"
+              title="Server is in read-only mode"
+            >
+              Read-Only
+            </span>
           </div>
           <div class="header-nav">
             <button
@@ -4109,6 +4116,35 @@
             >
               {{ importing ? 'Importing...' : 'Import Project' }}
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Read-Only Mode Modal -->
+      <div
+        v-if="showReadOnlyModal"
+        class="modal-overlay"
+        @click.self="closeReadOnlyModal"
+      >
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Read-Only Mode</h3>
+            <button class="modal-close" @click="closeReadOnlyModal">
+              &times;
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="read-only-message">
+              <div class="read-only-icon">&#128274;</div>
+              <p>CodeBuddy is running in <strong>read-only mode</strong>.</p>
+              <p>
+                Import and refresh operations are disabled. You can still browse
+                and search existing projects.
+              </p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-primary" @click="closeReadOnlyModal">OK</button>
           </div>
         </div>
       </div>
