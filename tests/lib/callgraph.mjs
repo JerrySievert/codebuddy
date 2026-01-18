@@ -30,6 +30,10 @@ const cleanup_all_test_projects = async () => {
     await query`DELETE FROM entity WHERE project_id = ${p.id}`;
     await query`DELETE FROM project WHERE id = ${p.id}`;
   }
+  // Refresh materialized view so API reflects changes
+  if (projects.length > 0) {
+    await query`REFRESH MATERIALIZED VIEW project_stats`;
+  }
 };
 
 // Clean up any leftover test data before running tests
