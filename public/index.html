@@ -2929,25 +2929,30 @@
                       <div class="analysis-stats-bar">
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_functions }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.total_functions)
+                            }}</span
                           ><span class="stat-label">Functions</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.metrics?.avg_line_length || 0
-                            }}</span
+                            >{{
+                            formatNumber(analysisDetail.metrics?.avg_line_length
+                            || 0) }}</span
                           ><span class="stat-label">Avg Line Length</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.metrics?.avg_nesting_depth || 0
-                            }}</span
+                            >{{
+                            formatNumber(analysisDetail.metrics?.avg_nesting_depth
+                            || 0) }}</span
                           ><span class="stat-label">Avg Nesting</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.metrics?.total_magic_numbers || 0
-                            }}</span
+                            >{{
+                            formatNumber(analysisDetail.metrics?.total_magic_numbers
+                            || 0) }}</span
                           ><span class="stat-label">Magic Numbers</span>
                         </div>
                       </div>
@@ -2962,16 +2967,17 @@
                           <div class="naming-convention-card">
                             <div class="convention-name">Excellent (85+)</div>
                             <div class="convention-count">
-                              {{
+                              {{ formatNumber(
                               analysisDetail.summary.score_distribution.excellent
-                              || 0 }}
+                              || 0) }}
                             </div>
                           </div>
                           <div class="naming-convention-card">
                             <div class="convention-name">Good (70-84)</div>
                             <div class="convention-count">
-                              {{ analysisDetail.summary.score_distribution.good
-                              || 0 }}
+                              {{
+                              formatNumber(analysisDetail.summary.score_distribution.good
+                              || 0) }}
                             </div>
                           </div>
                           <div class="naming-convention-card">
@@ -2979,18 +2985,19 @@
                               Acceptable (55-69)
                             </div>
                             <div class="convention-count">
-                              {{
+                              {{ formatNumber(
                               analysisDetail.summary.score_distribution.acceptable
-                              || 0 }}
+                              || 0) }}
                             </div>
                           </div>
                           <div class="naming-convention-card">
                             <div class="convention-name">Poor (&lt;55)</div>
                             <div class="convention-count">
-                              {{ (analysisDetail.summary.score_distribution.poor
+                              {{
+                              formatNumber((analysisDetail.summary.score_distribution.poor
                               || 0) +
                               (analysisDetail.summary.score_distribution.very_poor
-                              || 0) }}
+                              || 0)) }}
                             </div>
                           </div>
                         </div>

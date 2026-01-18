@@ -2826,6 +2826,92 @@ createApp({
       }
     };
 
+    // Sync summary counts with actual detail data to fix mismatches
+    const sync_analysis_counts = (type, detail) => {
+      if (!analysisData.value?.summaries) return;
+
+      const summaries = analysisData.value.summaries;
+
+      switch (type) {
+        case 'security':
+          if (detail.summary) {
+            summaries.security.total_vulnerabilities =
+              detail.summary.total_vulnerabilities || 0;
+            summaries.security.high_severity =
+              detail.summary.high_severity || 0;
+            summaries.security.medium_severity =
+              detail.summary.medium_severity || 0;
+            summaries.security.low_severity = detail.summary.low_severity || 0;
+          }
+          break;
+        case 'code-smells':
+          if (detail.summary) {
+            summaries.code_smells.total_smells =
+              detail.summary.total_smells || 0;
+            summaries.code_smells.smell_density =
+              detail.summary.smell_density || 0;
+            summaries.code_smells.god_functions =
+              detail.summary.god_functions || 0;
+          }
+          break;
+        case 'dead-code':
+          if (detail.summary) {
+            summaries.dead_code.dead_function_count =
+              detail.summary.dead_function_count || 0;
+            summaries.dead_code.dead_code_percentage =
+              detail.summary.dead_code_percentage || 0;
+            summaries.dead_code.dead_lines_of_code =
+              detail.summary.dead_lines_of_code || 0;
+          }
+          break;
+        case 'types':
+          if (detail.summary) {
+            summaries.types.type_coverage_percentage =
+              detail.summary.type_coverage_percentage || 0;
+            summaries.types.total_dynamic_functions =
+              detail.summary.total_functions || 0;
+            summaries.types.with_type_hints =
+              detail.summary.with_type_hints || 0;
+          }
+          break;
+        case 'documentation':
+          if (detail.summary) {
+            summaries.documentation.coverage_percentage =
+              detail.summary.coverage_percentage || 0;
+            summaries.documentation.fully_documented =
+              detail.summary.fully_documented || 0;
+            summaries.documentation.undocumented =
+              detail.summary.undocumented || 0;
+          }
+          break;
+        case 'scope':
+          if (detail.summary) {
+            summaries.scope.total_issues = detail.summary.total_issues || 0;
+            summaries.scope.global_variable_issues =
+              detail.summary.global_variable_issues || 0;
+            summaries.scope.shadowing_issues =
+              detail.summary.shadowing_issues || 0;
+          }
+          break;
+        case 'duplication':
+          if (detail.summary) {
+            summaries.duplication.duplicate_group_count =
+              detail.summary.duplicate_group_count || 0;
+            summaries.duplication.duplication_percentage =
+              detail.summary.duplication_percentage || 0;
+          }
+          break;
+        case 'dependencies':
+          if (detail.summary) {
+            summaries.dependencies.circular_dependency_count =
+              detail.summary.circular_dependency_count || 0;
+            summaries.dependencies.total_dependencies =
+              detail.summary.total_dependencies || 0;
+          }
+          break;
+      }
+    };
+
     // Track the current analysis request to handle race conditions
     let currentAnalysisRequestId = 0;
 
@@ -2853,6 +2939,11 @@ createApp({
         }
 
         analysisDetail.value = await response.json();
+
+        // Sync summary counts with actual detail data to fix mismatches
+        if (analysisData.value && analysisDetail.value) {
+          sync_analysis_counts(type, analysisDetail.value);
+        }
       } catch (error) {
         console.error(`Failed to load ${type} analysis:`, error);
         // Only update state if this is still the current request

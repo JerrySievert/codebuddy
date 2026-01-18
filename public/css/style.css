@@ -3421,10 +3421,13 @@ header h1 {
 }
 
 .naming-convention-card .convention-name {
-  font-size: 0.9em;
+  font-size: 0.85em;
   color: #666;
   margin-bottom: 8px;
   text-transform: capitalize;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .naming-convention-card .convention-count {
