@@ -6,7 +6,9 @@
  * @module migrations/1769000000000-table_symbol_reference
  */
 
-const up = async (query) => {
+import { query } from '../lib/db.mjs';
+
+const up = async () => {
   await query`
     CREATE TABLE symbol_reference (
       id SERIAL PRIMARY KEY,
@@ -30,7 +32,7 @@ const up = async (query) => {
   await query`CREATE INDEX idx_symbol_reference_definition ON symbol_reference(definition_entity_id)`;
 };
 
-const down = async (query) => {
+const down = async () => {
   await query`DROP TABLE IF EXISTS symbol_reference`;
 };
 

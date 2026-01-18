@@ -5,6 +5,7 @@ CodeBuddy is a code analysis and knowledge graph tool that parses source code us
 ## Features
 
 ### Code Parsing and Analysis
+
 - Multi-language support: C, C++, C#, Go, Java, JavaScript, TypeScript, Python, Ruby, Rust, Swift, PHP, and Zig
 - Function and method extraction with parameters, return types, and documentation
 - Class and struct detection with member function relationships
@@ -13,6 +14,7 @@ CodeBuddy is a code analysis and knowledge graph tool that parses source code us
 - Control flow graph generation
 
 ### Code Quality Analysis
+
 - Dead code detection (unreferenced functions)
 - Code duplication detection
 - Cyclomatic complexity metrics
@@ -25,6 +27,7 @@ CodeBuddy is a code analysis and knowledge graph tool that parses source code us
 - Dependency analysis with circular dependency detection
 
 ### Interfaces
+
 - **MCP Server**: Integration with AI assistants via Model Context Protocol
 - **Web Server**: REST API and interactive browser-based interface with visualizations
 - **CLI**: Command-line tool for project management and code queries
@@ -32,9 +35,11 @@ CodeBuddy is a code analysis and knowledge graph tool that parses source code us
 ## Screenshots
 
 ### Call Graph Visualization
+
 ![Call Graph](screenshots/call-graph.png)
 
 ### Code Analysis Dashboard
+
 ![Analysis Dashboard](screenshots/analysis-dashboard.png)
 
 ## Requirements
@@ -58,26 +63,31 @@ docker compose up --build
 This starts PostgreSQL and CodeBuddy, runs migrations automatically, and exposes the web interface at http://localhost:3000.
 
 To run in the background:
+
 ```bash
 docker compose up --build -d
 ```
 
 To view logs:
+
 ```bash
 docker compose logs -f codebuddy
 ```
 
 To stop the containers:
+
 ```bash
 docker compose down
 ```
 
 To stop and remove all data (including the database):
+
 ```bash
 docker compose down -v
 ```
 
 The Docker setup uses the following default configuration:
+
 - PostgreSQL 18 with database `codebuddy`
 - Web interface on port 3000
 - Persistent volumes for database data and cloned repositories
@@ -85,27 +95,26 @@ The Docker setup uses the following default configuration:
 ### Manual Installation
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/jerrysievert/codebuddy.git
 cd codebuddy
 ```
 
 2. Install dependencies:
-```bash
-yarn install
-```
 
-Alternatively, if using npm, disable legacy peer dependency checking to avoid tree-sitter compatibility issues:
 ```bash
 npm install --legacy-peer-deps
 ```
 
 3. Create a configuration file by copying the example:
+
 ```bash
 cp config.json.example config.json
 ```
 
 4. Edit `config.json` with your PostgreSQL connection details:
+
 ```json
 {
   "database": {
@@ -118,18 +127,21 @@ cp config.json.example config.json
 ```
 
 5. Enable the pg_trgm extension (required for fuzzy search):
+
 ```bash
 psql -U postgres -d codebuddy -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
 ```
 
 6. Run database migrations:
+
 ```bash
-yarn migrate
+npm run migrate
 ```
 
 7. Link the CLI tool (optional):
+
 ```bash
-yarn link
+npm link
 ```
 
 ## Usage
@@ -185,6 +197,7 @@ Example configuration for an HTTP-based MCP client:
 #### Available MCP Tools
 
 **Project Tools:**
+
 - `project_list` - List all projects with metadata
 - `project_info` - Get detailed project information
 - `project_import` - Import a project from local path or git URL
@@ -192,6 +205,7 @@ Example configuration for an HTTP-based MCP client:
 - `project_delete` - Delete a project and all its data
 
 **Function Tools:**
+
 - `function_list` - List all functions in a project
 - `function_search` - Search for functions by name
 - `function_retrieve` - Get function details with source code
@@ -203,11 +217,13 @@ Example configuration for an HTTP-based MCP client:
 - `function_control_flow` - Get control flow graph for a function
 
 **Entity Tools:**
+
 - `entity_list` - List all entities (functions, classes, structs)
 - `entity_search` - Search entities by name
 - `class_members` - Get class/struct members
 
 **Analysis Tools:**
+
 - `analysis_dashboard` - Full analysis overview with health scores
 - `analysis_dead_code` - Dead code detection
 - `analysis_duplication` - Code duplication analysis
@@ -221,11 +237,13 @@ Example configuration for an HTTP-based MCP client:
 - `analysis_scope` - Variable scope analysis
 
 **Utility Tools:**
+
 - `read_sourcecode` - Read source code with optional line range
 
 ### Web Server
 
 Start the web server:
+
 ```bash
 node server.mjs
 ```
@@ -244,12 +262,14 @@ The server provides both a REST API and a web interface at http://localhost:3000
 #### REST API Endpoints
 
 **Project Endpoints:**
+
 - `GET /api/v1/projects` - List all projects
 - `GET /api/v1/projects/{name}` - Get project information
 - `POST /api/v1/projects/import` - Import a project
 - `POST /api/v1/projects/{name}/refresh` - Refresh project data
 
 **Function Endpoints:**
+
 - `GET /api/v1/functions?project={name}` - List functions
 - `GET /api/v1/functions/search?name={query}&project={name}` - Search functions
 - `GET /api/v1/functions/{name}?project={name}` - Get function details
@@ -263,13 +283,16 @@ The server provides both a REST API and a web interface at http://localhost:3000
 - `GET /api/v1/functions/{id}/members` - Get class/struct members
 
 **Entity Endpoints:**
+
 - `GET /api/v1/entities?project={name}` - List all entities
 - `GET /api/v1/entities/search?name={query}&project={name}` - Search entities
 
 **Source Code Endpoints:**
+
 - `GET /api/v1/sourcecode?project={name}&filename={path}` - Read source code
 
 **Analysis Endpoints:**
+
 - `GET /api/v1/projects/{name}/analysis` - Full analysis dashboard
 - `GET /api/v1/projects/{name}/analysis/dead-code` - Dead code detection
 - `GET /api/v1/projects/{name}/analysis/duplication` - Code duplication
@@ -283,6 +306,7 @@ The server provides both a REST API and a web interface at http://localhost:3000
 - `GET /api/v1/projects/{name}/analysis/scope` - Variable scope
 
 **Job Endpoints:**
+
 - `GET /api/v1/jobs` - List background jobs
 - `GET /api/v1/jobs/{id}` - Get job status
 - `GET /api/v1/jobs/stats` - Get job statistics
@@ -399,57 +423,57 @@ cb analysis scope --project=myproject
 
 ## Feature Comparison
 
-| Feature | MCP | Web API | CLI |
-|---------|-----|---------|-----|
-| List projects | project_list | GET /api/v1/projects | cb project list |
-| Project info | project_info | GET /api/v1/projects/{name} | cb project info |
-| Import project | project_import | POST /api/v1/projects/import | cb project import |
-| Refresh project | project_refresh | POST /api/v1/projects/{name}/refresh | cb project refresh |
-| Delete project | project_delete | - | cb project delete |
-| List functions | function_list | GET /api/v1/functions | cb function list |
-| Search functions | function_search | GET /api/v1/functions/search | cb function search |
-| Function details | function_retrieve | GET /api/v1/functions/{name} | cb function retrieve |
-| Function callers | function_callers | GET /api/v1/functions/{name}/callers | cb function callers |
-| Function callees | function_callees | GET /api/v1/functions/{name}/callees | cb function callees |
-| Caller tree | function_caller_tree | GET /api/v1/functions/{name}/caller-tree | cb function caller-tree |
-| Callee tree | function_callee_tree | GET /api/v1/functions/{name}/callee-tree | cb function callee-tree |
-| Call graph | function_call_graph | GET /api/v1/functions/{name}/callgraph | cb function call-graph |
-| Control flow | function_control_flow | GET /api/v1/functions/{name}/controlflow | cb function control-flow |
-| List entities | entity_list | GET /api/v1/entities | cb entity list |
-| Search entities | entity_search | GET /api/v1/entities/search | cb entity search |
-| Class members | class_members | GET /api/v1/functions/{id}/members | cb entity members |
-| Read source | read_sourcecode | GET /api/v1/sourcecode | - |
-| Analysis dashboard | analysis_dashboard | GET /api/v1/projects/{name}/analysis | cb analysis dashboard |
-| Dead code | analysis_dead_code | GET /api/v1/projects/{name}/analysis/dead-code | cb analysis dead-code |
-| Duplication | analysis_duplication | GET /api/v1/projects/{name}/analysis/duplication | cb analysis duplication |
-| Dependencies | analysis_dependencies | GET /api/v1/projects/{name}/analysis/dependencies | cb analysis dependencies |
-| Security | analysis_security | GET /api/v1/projects/{name}/analysis/security | cb analysis security |
-| Metrics | analysis_metrics | GET /api/v1/projects/{name}/analysis/metrics | cb analysis metrics |
-| Code smells | analysis_code_smells | GET /api/v1/projects/{name}/analysis/code-smells | cb analysis smells |
-| Type coverage | analysis_types | GET /api/v1/projects/{name}/analysis/types | cb analysis types |
-| API surface | analysis_api_surface | GET /api/v1/projects/{name}/analysis/api-surface | cb analysis api |
-| Documentation | analysis_documentation | GET /api/v1/projects/{name}/analysis/documentation | cb analysis docs |
-| Scope analysis | analysis_scope | GET /api/v1/projects/{name}/analysis/scope | cb analysis scope |
+| Feature            | MCP                    | Web API                                            | CLI                      |
+| ------------------ | ---------------------- | -------------------------------------------------- | ------------------------ |
+| List projects      | project_list           | GET /api/v1/projects                               | cb project list          |
+| Project info       | project_info           | GET /api/v1/projects/{name}                        | cb project info          |
+| Import project     | project_import         | POST /api/v1/projects/import                       | cb project import        |
+| Refresh project    | project_refresh        | POST /api/v1/projects/{name}/refresh               | cb project refresh       |
+| Delete project     | project_delete         | -                                                  | cb project delete        |
+| List functions     | function_list          | GET /api/v1/functions                              | cb function list         |
+| Search functions   | function_search        | GET /api/v1/functions/search                       | cb function search       |
+| Function details   | function_retrieve      | GET /api/v1/functions/{name}                       | cb function retrieve     |
+| Function callers   | function_callers       | GET /api/v1/functions/{name}/callers               | cb function callers      |
+| Function callees   | function_callees       | GET /api/v1/functions/{name}/callees               | cb function callees      |
+| Caller tree        | function_caller_tree   | GET /api/v1/functions/{name}/caller-tree           | cb function caller-tree  |
+| Callee tree        | function_callee_tree   | GET /api/v1/functions/{name}/callee-tree           | cb function callee-tree  |
+| Call graph         | function_call_graph    | GET /api/v1/functions/{name}/callgraph             | cb function call-graph   |
+| Control flow       | function_control_flow  | GET /api/v1/functions/{name}/controlflow           | cb function control-flow |
+| List entities      | entity_list            | GET /api/v1/entities                               | cb entity list           |
+| Search entities    | entity_search          | GET /api/v1/entities/search                        | cb entity search         |
+| Class members      | class_members          | GET /api/v1/functions/{id}/members                 | cb entity members        |
+| Read source        | read_sourcecode        | GET /api/v1/sourcecode                             | -                        |
+| Analysis dashboard | analysis_dashboard     | GET /api/v1/projects/{name}/analysis               | cb analysis dashboard    |
+| Dead code          | analysis_dead_code     | GET /api/v1/projects/{name}/analysis/dead-code     | cb analysis dead-code    |
+| Duplication        | analysis_duplication   | GET /api/v1/projects/{name}/analysis/duplication   | cb analysis duplication  |
+| Dependencies       | analysis_dependencies  | GET /api/v1/projects/{name}/analysis/dependencies  | cb analysis dependencies |
+| Security           | analysis_security      | GET /api/v1/projects/{name}/analysis/security      | cb analysis security     |
+| Metrics            | analysis_metrics       | GET /api/v1/projects/{name}/analysis/metrics       | cb analysis metrics      |
+| Code smells        | analysis_code_smells   | GET /api/v1/projects/{name}/analysis/code-smells   | cb analysis smells       |
+| Type coverage      | analysis_types         | GET /api/v1/projects/{name}/analysis/types         | cb analysis types        |
+| API surface        | analysis_api_surface   | GET /api/v1/projects/{name}/analysis/api-surface   | cb analysis api          |
+| Documentation      | analysis_documentation | GET /api/v1/projects/{name}/analysis/documentation | cb analysis docs         |
+| Scope analysis     | analysis_scope         | GET /api/v1/projects/{name}/analysis/scope         | cb analysis scope        |
 
 ## Development
 
 ### Running Tests
 
 ```bash
-yarn test
+npm test
 ```
 
 ### Database Migrations
 
 ```bash
 # Create a new migration
-yarn migrate:create
+npm run migrate:create
 
 # Run pending migrations
-yarn migrate
+npm run migrate
 
 # Rollback last migration
-yarn migrate:down
+npm run migrate:down
 ```
 
 ### Project Structure
@@ -477,7 +501,7 @@ codebuddy/
 ## Supported Languages
 
 | Language   | Functions | Classes | Structs | Call Graph |
-|------------|-----------|---------|---------|------------|
+| ---------- | --------- | ------- | ------- | ---------- |
 | C          | Yes       | No      | Yes     | Yes        |
 | C++        | Yes       | Yes     | Yes     | Yes        |
 | C#         | Yes       | Yes     | Yes     | Yes        |

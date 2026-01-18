@@ -5,7 +5,9 @@
  * @module migrations/1769100000001-table_inheritance
  */
 
-const up = async (query) => {
+import { query } from '../lib/db.mjs';
+
+const up = async () => {
   await query`
     CREATE TABLE IF NOT EXISTS inheritance (
       id SERIAL PRIMARY KEY,
@@ -22,7 +24,7 @@ const up = async (query) => {
   await query`CREATE INDEX IF NOT EXISTS idx_inheritance_parent_symbol ON inheritance(parent_symbol)`;
 };
 
-const down = async (query) => {
+const down = async () => {
   await query`DROP INDEX IF EXISTS idx_inheritance_parent_symbol`;
   await query`DROP INDEX IF EXISTS idx_inheritance_parent`;
   await query`DROP INDEX IF EXISTS idx_inheritance_child`;

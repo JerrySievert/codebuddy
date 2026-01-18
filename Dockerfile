@@ -5,14 +5,14 @@ WORKDIR /app
 # Install git, ssh, and build tools
 RUN apk add --no-cache git openssh-client python3 make g++
 
-# Copy package files (exclude yarn.lock to regenerate with HTTPS URLs)
+# Copy package files
 COPY package.json ./
 
 # Install dependencies (using HTTPS instead of SSH for GitHub)
 RUN git config --global url."https://github.com/".insteadOf "git+ssh://git@github.com/" && \
   git config --global url."https://github.com/".insteadOf "ssh://git@github.com/" && \
   git config --global url."https://github.com/".insteadOf "git@github.com:" && \
-  yarn install
+  npm install --legacy-peer-deps
 
 # Copy application code
 COPY . .
@@ -45,7 +45,7 @@ RUN echo '#!/bin/sh' > /entrypoint.sh && \
   echo '' >> /entrypoint.sh && \
   echo '# Run migrations' >> /entrypoint.sh && \
   echo 'echo "Running database migrations..."' >> /entrypoint.sh && \
-  echo 'yarn migrate || echo "Migration completed (some may have already been applied)"' >> /entrypoint.sh && \
+  echo 'npm run migrate || echo "Migration completed (some may have already been applied)"' >> /entrypoint.sh && \
   echo '' >> /entrypoint.sh && \
   echo '# Start the server' >> /entrypoint.sh && \
   echo 'echo "Starting CodeBuddy server..."' >> /entrypoint.sh && \

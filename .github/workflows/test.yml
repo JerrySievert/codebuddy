@@ -41,7 +41,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: yarn install --ignore-optional
+        run: npm install --legacy-peer-deps
 
       - name: Create config.json
         run: |
@@ -57,7 +57,7 @@ jobs:
           EOF
 
       - name: Run migrations
-        run: yarn migrate
+        run: npm run migrate
 
       - name: Run tests
-        run: yarn test
+        run: npm test

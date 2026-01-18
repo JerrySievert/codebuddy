@@ -5,7 +5,9 @@
  * @module migrations/1769100000000-add_inheritance_columns
  */
 
-const up = async (query) => {
+import { query } from '../lib/db.mjs';
+
+const up = async () => {
   // Add parent_class column to track direct inheritance
   await query`ALTER TABLE entity ADD COLUMN IF NOT EXISTS parent_class TEXT`;
 
@@ -16,7 +18,7 @@ const up = async (query) => {
   await query`ALTER TABLE entity ADD COLUMN IF NOT EXISTS is_abstract BOOLEAN DEFAULT FALSE`;
 };
 
-const down = async (query) => {
+const down = async () => {
   await query`ALTER TABLE entity DROP COLUMN IF EXISTS is_abstract`;
   await query`ALTER TABLE entity DROP COLUMN IF EXISTS interfaces`;
   await query`ALTER TABLE entity DROP COLUMN IF EXISTS parent_class`;
