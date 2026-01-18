@@ -18,6 +18,24 @@ import { insert_or_update_project } from '../../lib/model/project.mjs';
 import { insert_or_update_entity } from '../../lib/model/entity.mjs';
 
 /**
+ * Clean up any leftover test projects from previous runs.
+ * This ensures a clean state even if previous tests crashed.
+ */
+const cleanup_all_test_projects = async () => {
+  const projects =
+    await query`SELECT id FROM project WHERE name LIKE '_test_callgraph_%'`;
+  for (const p of projects) {
+    await query`DELETE FROM relationship WHERE caller IN (SELECT id FROM entity WHERE project_id = ${p.id})`;
+    await query`DELETE FROM relationship WHERE callee IN (SELECT id FROM entity WHERE project_id = ${p.id})`;
+    await query`DELETE FROM entity WHERE project_id = ${p.id}`;
+    await query`DELETE FROM project WHERE id = ${p.id}`;
+  }
+};
+
+// Clean up any leftover test data before running tests
+await cleanup_all_test_projects();
+
+/**
  * Create test fixtures for call graph testing.
  * Creates a project with functions that have a call hierarchy:
  *
@@ -443,3 +461,6 @@ await test('verify max depth constraint for caller direction', async (t) => {
     await cleanup_test_fixtures(project_id);
   }
 });
+
+// Final cleanup to ensure no test data remains
+await cleanup_all_test_projects();
