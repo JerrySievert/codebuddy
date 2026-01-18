@@ -3,14 +3,15 @@
 /**
  * @fileoverview Tests for MCP tools registration.
  * Tests that the MCP server registers all expected tools.
- * Tool functionality is tested via the HTTP transport in mcp_http.mjs.
+ * Tool functionality is tested in mcp_handlers.mjs.
  */
 
 import { create_mcp_server } from '../../lib/mcp-http.mjs';
+import { get_tool_names } from '../../lib/mcp/tools.mjs';
 import { test } from 'st';
 
 // Helper to get registered tool names from the server's internal registry
-const getToolNames = (server) => {
+const get_server_tool_names = (server) => {
   // Access the internal _registeredTools map
   const tools = server._registeredTools;
   return Object.keys(tools);
@@ -20,16 +21,17 @@ const getToolNames = (server) => {
 
 await test('create_mcp_server creates server with all expected tools', async (t) => {
   const server = create_mcp_server();
-  const toolNames = getToolNames(server);
+  const server_tool_names = get_server_tool_names(server);
 
   // Check that all new tools are registered
-  const expectedNewTools = [
+  const expected_new_tools = [
     'entity_list',
     'entity_search',
     'entity_references',
     'class_members',
-    'function_call_graph',
-    'function_control_flow',
+    'function_callgraph',
+    'function_controlflow',
+    'function_complexity',
     'analysis_dashboard',
     'analysis_dead_code',
     'analysis_duplication',
@@ -59,24 +61,26 @@ await test('create_mcp_server creates server with all expected tools', async (t)
     'analysis_readability',
     // Pattern detection and test analysis tools
     'analysis_patterns',
-    'analysis_tests'
+    'analysis_tests',
+    // File analytics
+    'file_analytics'
   ];
 
-  for (const toolName of expectedNewTools) {
+  for (const tool_name of expected_new_tools) {
     t.assert.eq(
-      toolNames.includes(toolName),
+      server_tool_names.includes(tool_name),
       true,
-      `Should have tool '${toolName}'`
+      `Should have tool '${tool_name}'`
     );
   }
 });
 
 await test('create_mcp_server creates server with original tools', async (t) => {
   const server = create_mcp_server();
-  const toolNames = getToolNames(server);
+  const server_tool_names = get_server_tool_names(server);
 
   // Check that original tools are still present
-  const originalTools = [
+  const original_tools = [
     'function_list',
     'function_search',
     'function_retrieve',
@@ -92,11 +96,32 @@ await test('create_mcp_server creates server with original tools', async (t) => 
     'function_callee_tree'
   ];
 
-  for (const toolName of originalTools) {
+  for (const tool_name of original_tools) {
     t.assert.eq(
-      toolNames.includes(toolName),
+      server_tool_names.includes(tool_name),
       true,
-      `Should have original tool '${toolName}'`
+      `Should have original tool '${tool_name}'`
+    );
+  }
+});
+
+await test('registered tools match get_tool_names from tools module', async (t) => {
+  const server = create_mcp_server();
+  const server_tool_names = get_server_tool_names(server);
+  const module_tool_names = get_tool_names();
+
+  // Both should have the same tools
+  t.assert.eq(
+    server_tool_names.length,
+    module_tool_names.length,
+    'Should have same number of tools'
+  );
+
+  for (const name of module_tool_names) {
+    t.assert.eq(
+      server_tool_names.includes(name),
+      true,
+      `Server should have tool '${name}' from module`
     );
   }
 });
