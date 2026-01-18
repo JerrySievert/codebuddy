@@ -224,7 +224,7 @@ await test('project_info_handler throws for non-existent project', async (t) => 
 
 await test('function_list_handler throws for non-existent project', async (t) => {
   try {
-    await function_list_handler({ project: 'non_existent_project_xyz_123' });
+    await function_list_handler({ project_name: 'non_existent_project_xyz_123' });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
     t.assert.eq(
@@ -252,7 +252,7 @@ await test('function_caller_tree_handler throws for non-existent project', async
   try {
     await function_caller_tree_handler({
       name: 'some_function',
-      project: 'non_existent_project_xyz_123'
+      project_name: 'non_existent_project_xyz_123'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
@@ -268,7 +268,7 @@ await test('function_callee_tree_handler throws for non-existent project', async
   try {
     await function_callee_tree_handler({
       name: 'some_function',
-      project: 'non_existent_project_xyz_123'
+      project_name: 'non_existent_project_xyz_123'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
@@ -284,7 +284,7 @@ await test('function_controlflow_handler throws for non-existent project', async
   try {
     await function_controlflow_handler({
       name: 'some_function',
-      project: 'non_existent_project_xyz_123'
+      project_name: 'non_existent_project_xyz_123'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
@@ -302,7 +302,7 @@ await test('function_controlflow_handler throws for non-existent project', async
 
 await test('entity_list_handler throws for non-existent project', async (t) => {
   try {
-    await entity_list_handler({ project: 'non_existent_project_xyz_123' });
+    await entity_list_handler({ project_name: 'non_existent_project_xyz_123' });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
     t.assert.eq(
@@ -327,7 +327,7 @@ await test('entity_references_handler throws for non-existent project', async (t
   try {
     await entity_references_handler({
       name: 'SomeStruct',
-      project: 'non_existent_project_xyz_123'
+      project_name: 'non_existent_project_xyz_123'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
@@ -359,7 +359,7 @@ await test('class_members_handler throws for non-existent entity', async (t) => 
 await test('analysis_dashboard_handler throws for non-existent project', async (t) => {
   try {
     await analysis_dashboard_handler({
-      project: 'non_existent_project_xyz_123'
+      project_name: 'non_existent_project_xyz_123'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
@@ -374,7 +374,7 @@ await test('analysis_dashboard_handler throws for non-existent project', async (
 await test('analysis_dead_code_handler throws for non-existent project', async (t) => {
   try {
     await analysis_dead_code_handler({
-      project: 'non_existent_project_xyz_123'
+      project_name: 'non_existent_project_xyz_123'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
@@ -389,7 +389,7 @@ await test('analysis_dead_code_handler throws for non-existent project', async (
 await test('analysis_duplication_handler throws for non-existent project', async (t) => {
   try {
     await analysis_duplication_handler({
-      project: 'non_existent_project_xyz_123'
+      project_name: 'non_existent_project_xyz_123'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
@@ -404,7 +404,7 @@ await test('analysis_duplication_handler throws for non-existent project', async
 await test('analysis_security_handler throws for non-existent project', async (t) => {
   try {
     await analysis_security_handler({
-      project: 'non_existent_project_xyz_123'
+      project_name: 'non_existent_project_xyz_123'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
@@ -419,7 +419,7 @@ await test('analysis_security_handler throws for non-existent project', async (t
 await test('analysis_metrics_handler throws for non-existent project', async (t) => {
   try {
     await analysis_metrics_handler({
-      project: 'non_existent_project_xyz_123'
+      project_name: 'non_existent_project_xyz_123'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
@@ -438,7 +438,7 @@ await test('analysis_metrics_handler throws for non-existent project', async (t)
 await test('symbol_references_handler throws for non-existent project', async (t) => {
   try {
     await symbol_references_handler({
-      project: 'non_existent_project_xyz_123',
+      project_name: 'non_existent_project_xyz_123',
       symbol: 'someSymbol'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
@@ -454,7 +454,7 @@ await test('symbol_references_handler throws for non-existent project', async (t
 await test('go_to_definition_handler throws for non-existent project', async (t) => {
   try {
     await go_to_definition_handler({
-      project: 'non_existent_project_xyz_123',
+      project_name: 'non_existent_project_xyz_123',
       symbol: 'someSymbol'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
@@ -470,7 +470,7 @@ await test('go_to_definition_handler throws for non-existent project', async (t)
 await test('list_definitions_handler throws for non-existent project', async (t) => {
   try {
     await list_definitions_handler({
-      project: 'non_existent_project_xyz_123'
+      project_name: 'non_existent_project_xyz_123'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
@@ -485,7 +485,7 @@ await test('list_definitions_handler throws for non-existent project', async (t)
 await test('symbol_reference_summary_handler throws for non-existent project', async (t) => {
   try {
     await symbol_reference_summary_handler({
-      project: 'non_existent_project_xyz_123'
+      project_name: 'non_existent_project_xyz_123'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
@@ -500,7 +500,7 @@ await test('symbol_reference_summary_handler throws for non-existent project', a
 await test('symbols_at_location_handler throws for non-existent project', async (t) => {
   try {
     await symbols_at_location_handler({
-      project: 'non_existent_project_xyz_123',
+      project_name: 'non_existent_project_xyz_123',
       filename: 'test.js',
       line: 1
     });
@@ -521,7 +521,7 @@ await test('symbols_at_location_handler throws for non-existent project', async 
 await test('class_hierarchy_handler throws for non-existent project', async (t) => {
   try {
     await class_hierarchy_handler({
-      project: 'non_existent_project_xyz_123',
+      project_name: 'non_existent_project_xyz_123',
       symbol: 'SomeClass'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
@@ -537,7 +537,7 @@ await test('class_hierarchy_handler throws for non-existent project', async (t) 
 await test('interface_implementations_handler throws for non-existent project', async (t) => {
   try {
     await interface_implementations_handler({
-      project: 'non_existent_project_xyz_123',
+      project_name: 'non_existent_project_xyz_123',
       symbol: 'SomeInterface'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
@@ -553,7 +553,7 @@ await test('interface_implementations_handler throws for non-existent project', 
 await test('analysis_hierarchy_handler throws for non-existent project', async (t) => {
   try {
     await analysis_hierarchy_handler({
-      project: 'non_existent_project_xyz_123'
+      project_name: 'non_existent_project_xyz_123'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
   } catch (err) {
@@ -572,7 +572,7 @@ await test('analysis_hierarchy_handler throws for non-existent project', async (
 await test('file_analytics_handler throws for non-existent project', async (t) => {
   try {
     await file_analytics_handler({
-      project: 'non_existent_project_xyz_123',
+      project_name: 'non_existent_project_xyz_123',
       filename: 'test.js'
     });
     t.assert.eq(true, false, 'Should have thrown an error');
