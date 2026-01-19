@@ -1162,13 +1162,15 @@
                       <div class="analysis-stats-bar">
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.dead_function_count
+                            >{{
+                            formatNumber(analysisDetail.summary.dead_function_count)
                             }}</span
                           ><span class="stat-label">Dead Functions</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.dead_lines_of_code
+                            >{{
+                            formatNumber(analysisDetail.summary.dead_lines_of_code)
                             }}</span
                           ><span class="stat-label">Dead LOC</span>
                         </div>
@@ -1254,13 +1256,15 @@
                       <div class="analysis-stats-bar">
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.duplicate_group_count
+                            >{{
+                            formatNumber(analysisDetail.summary.duplicate_group_count)
                             }}</span
                           ><span class="stat-label">Duplicate Groups</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_clone_count
+                            >{{
+                            formatNumber(analysisDetail.summary.total_clone_count)
                             }}</span
                           ><span class="stat-label">Total Clones</span>
                         </div>
@@ -1346,12 +1350,14 @@
                       <div class="analysis-stats-bar">
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_files }}</span
+                            >{{ formatNumber(analysisDetail.summary.total_files)
+                            }}</span
                           ><span class="stat-label">Files</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_dependencies
+                            >{{
+                            formatNumber(analysisDetail.summary.total_dependencies)
                             }}</span
                           ><span class="stat-label">Dependencies</span>
                         </div>
@@ -1360,7 +1366,8 @@
                           :class="{ 'stat-warning': analysisDetail.summary.circular_dependency_count > 0 }"
                         >
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.circular_dependency_count
+                            >{{
+                            formatNumber(analysisDetail.summary.circular_dependency_count)
                             }}</span
                           ><span class="stat-label">Circular Deps</span>
                         </div>
@@ -1432,7 +1439,9 @@
                           :class="{ 'stat-critical': analysisDetail.summary.high_severity > 0 }"
                         >
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.high_severity }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.high_severity)
+                            }}</span
                           ><span class="stat-label">High Severity</span>
                         </div>
                         <div
@@ -1440,12 +1449,16 @@
                           :class="{ 'stat-warning': analysisDetail.summary.medium_severity > 0 }"
                         >
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.medium_severity }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.medium_severity)
+                            }}</span
                           ><span class="stat-label">Medium Severity</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.low_severity }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.low_severity)
+                            }}</span
                           ><span class="stat-label">Low Severity</span>
                         </div>
                       </div>
@@ -1507,7 +1520,9 @@
                       <div class="analysis-stats-bar">
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_smells }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.total_smells)
+                            }}</span
                           ><span class="stat-label">Total Smells</span>
                         </div>
                         <div class="stat-item">
@@ -1517,7 +1532,9 @@
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.god_functions }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.god_functions)
+                            }}</span
                           ><span class="stat-label">God Functions</span>
                         </div>
                       </div>
@@ -1689,13 +1706,16 @@
                       <div class="analysis-stats-bar">
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_dynamic_functions
+                            >{{
+                            formatNumber(analysisDetail.summary.total_dynamic_functions)
                             }}</span
                           ><span class="stat-label">Dynamic Functions</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.with_type_hints }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.with_type_hints)
+                            }}</span
                           ><span class="stat-label">With Types</span>
                         </div>
                         <div class="stat-item">
@@ -1768,12 +1788,16 @@
                       <div class="analysis-stats-bar">
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.public_count }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.public_count)
+                            }}</span
                           ><span class="stat-label">Public Functions</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.private_count }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.private_count)
+                            }}</span
                           ><span class="stat-label">Private Functions</span>
                         </div>
                         <div class="stat-item">
@@ -1863,12 +1887,16 @@
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.fully_documented }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.fully_documented)
+                            }}</span
                           ><span class="stat-label">Documented</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.undocumented }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.undocumented)
+                            }}</span
                           ><span class="stat-label">Undocumented</span>
                         </div>
                       </div>
@@ -1934,18 +1962,23 @@
                       <div class="analysis-stats-bar">
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_issues }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.total_issues)
+                            }}</span
                           ><span class="stat-label">Total Issues</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.global_variable_issues
+                            >{{
+                            formatNumber(analysisDetail.summary.global_variable_issues)
                             }}</span
                           ><span class="stat-label">Global Vars</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.shadowing_issues }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.shadowing_issues)
+                            }}</span
                           ><span class="stat-label">Shadowing</span>
                         </div>
                       </div>
@@ -2049,25 +2082,28 @@
                         <div class="stat-item">
                           <span class="stat-value"
                             >{{
-                            analysisDetail.summary.functions_with_concurrency
+                            formatNumber(analysisDetail.summary.functions_with_concurrency)
                             }}</span
                           ><span class="stat-label">Functions</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_async_patterns
+                            >{{
+                            formatNumber(analysisDetail.summary.total_async_patterns)
                             }}</span
                           ><span class="stat-label">Async/Await</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_thread_patterns
+                            >{{
+                            formatNumber(analysisDetail.summary.total_thread_patterns)
                             }}</span
                           ><span class="stat-label">Thread Patterns</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_sync_patterns
+                            >{{
+                            formatNumber(analysisDetail.summary.total_sync_patterns)
                             }}</span
                           ><span class="stat-label">Sync Primitives</span>
                         </div>
@@ -2076,7 +2112,9 @@
                           :class="{ 'stat-warning': analysisDetail.summary.total_warnings > 0 }"
                         >
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_warnings }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.total_warnings)
+                            }}</span
                           ><span class="stat-label">Warnings</span>
                         </div>
                       </div>
@@ -2291,19 +2329,23 @@
                       <div class="analysis-stats-bar">
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.functions_with_resources
+                            >{{
+                            formatNumber(analysisDetail.summary.functions_with_resources)
                             }}</span
                           ><span class="stat-label">Functions</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_acquisitions
+                            >{{
+                            formatNumber(analysisDetail.summary.total_acquisitions)
                             }}</span
                           ><span class="stat-label">Acquisitions</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_releases }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.total_releases)
+                            }}</span
                           ><span class="stat-label">Releases</span>
                         </div>
                         <div
@@ -2311,7 +2353,8 @@
                           :class="{ 'stat-warning': analysisDetail.summary.total_potential_leaks > 0 }"
                         >
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_potential_leaks
+                            >{{
+                            formatNumber(analysisDetail.summary.total_potential_leaks)
                             }}</span
                           ><span class="stat-label">Potential Leaks</span>
                         </div>
@@ -2320,7 +2363,9 @@
                           :class="{ 'stat-warning': analysisDetail.summary.total_warnings > 0 }"
                         >
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_warnings }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.total_warnings)
+                            }}</span
                           ><span class="stat-label">Warnings</span>
                         </div>
                       </div>
@@ -2538,26 +2583,29 @@
                       <div class="analysis-stats-bar">
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_patterns_detected
+                            >{{
+                            formatNumber(analysisDetail.summary.total_patterns_detected)
                             }}</span
                           ><span class="stat-label">Design Patterns</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{
+                            >{{ formatNumber(
                             analysisDetail.summary.patterns_by_category['anti-pattern']
-                            || 0 }}</span
+                            || 0) }}</span
                           ><span class="stat-label">Anti-Patterns</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_functions }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.total_functions)
+                            }}</span
                           ><span class="stat-label">Functions Analyzed</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{
-                            analysisDetail.summary.error_handling.functions_with_error_handling
+                            >{{ formatNumber(
+                            analysisDetail.summary.error_handling.functions_with_error_handling)
                             }}</span
                           ><span class="stat-label">Error Handlers</span>
                         </div>
@@ -2642,8 +2690,8 @@
                         <div class="analysis-stats-bar">
                           <div class="stat-item">
                             <span class="stat-value"
-                              >{{
-                              analysisDetail.summary.error_handling.total_try_catch
+                              >{{ formatNumber(
+                              analysisDetail.summary.error_handling.total_try_catch)
                               }}</span
                             ><span class="stat-label">Try/Catch</span>
                           </div>
@@ -2652,15 +2700,15 @@
                             :class="{ 'stat-warning': analysisDetail.summary.error_handling.total_empty_catch > 0 }"
                           >
                             <span class="stat-value"
-                              >{{
-                              analysisDetail.summary.error_handling.total_empty_catch
+                              >{{ formatNumber(
+                              analysisDetail.summary.error_handling.total_empty_catch)
                               }}</span
                             ><span class="stat-label">Empty Catch</span>
                           </div>
                           <div class="stat-item">
                             <span class="stat-value"
-                              >{{
-                              analysisDetail.summary.error_handling.total_finally
+                              >{{ formatNumber(
+                              analysisDetail.summary.error_handling.total_finally)
                               }}</span
                             ><span class="stat-label">Finally Blocks</span>
                           </div>
@@ -2703,17 +2751,21 @@
                       <div class="analysis-stats-bar">
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.test_files }}</span
+                            >{{ formatNumber(analysisDetail.summary.test_files)
+                            }}</span
                           ><span class="stat-label">Test Files</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_assertions }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.total_assertions)
+                            }}</span
                           ><span class="stat-label">Assertions</span>
                         </div>
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_mocks }}</span
+                            >{{ formatNumber(analysisDetail.summary.total_mocks)
+                            }}</span
                           ><span class="stat-label">Mocks/Stubs</span>
                         </div>
                         <div class="stat-item">
@@ -2813,7 +2865,8 @@
                       <div class="analysis-stats-bar">
                         <div class="stat-item">
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.total_identifiers
+                            >{{
+                            formatNumber(analysisDetail.summary.total_identifiers)
                             }}</span
                           ><span class="stat-label">Identifiers</span>
                         </div>
@@ -2827,7 +2880,9 @@
                           :class="{ 'stat-warning': analysisDetail.summary.non_compliant > 0 }"
                         >
                           <span class="stat-value"
-                            >{{ analysisDetail.summary.non_compliant }}</span
+                            >{{
+                            formatNumber(analysisDetail.summary.non_compliant)
+                            }}</span
                           ><span class="stat-label">Violations</span>
                         </div>
                       </div>
