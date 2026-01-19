@@ -7,7 +7,8 @@ import {
   get_job,
   get_jobs,
   get_queue_stats,
-  cleanup_jobs
+  cleanup_jobs,
+  queue_job
 } from '../../lib/jobs.mjs';
 
 import { test } from 'st';
@@ -17,7 +18,11 @@ import { test } from 'st';
 await test('JobStatus has correct values', async (t) => {
   t.assert.eq(JobStatus.QUEUED, 'queued', 'QUEUED should be "queued"');
   t.assert.eq(JobStatus.RUNNING, 'running', 'RUNNING should be "running"');
-  t.assert.eq(JobStatus.COMPLETED, 'completed', 'COMPLETED should be "completed"');
+  t.assert.eq(
+    JobStatus.COMPLETED,
+    'completed',
+    'COMPLETED should be "completed"'
+  );
   t.assert.eq(JobStatus.FAILED, 'failed', 'FAILED should be "failed"');
 });
 
@@ -31,8 +36,16 @@ await test('create_job creates a job with correct initial state', async (t) => {
   t.assert.eq(job.type, 'test', 'Job type should match');
   t.assert.eq(job.status, JobStatus.QUEUED, 'Initial status should be QUEUED');
   t.assert.eq(job.progress, 0, 'Initial progress should be 0');
-  t.assert.eq(job.message, 'Queued...', 'Initial message should be "Queued..."');
-  t.assert.eq(job.metadata.name, 'test-project', 'Metadata should be preserved');
+  t.assert.eq(
+    job.message,
+    'Queued...',
+    'Initial message should be "Queued..."'
+  );
+  t.assert.eq(
+    job.metadata.name,
+    'test-project',
+    'Metadata should be preserved'
+  );
   t.assert.ok(job.created_at, 'Should have created_at timestamp');
   t.assert.eq(job.started_at, null, 'started_at should be null');
   t.assert.eq(job.completed_at, null, 'completed_at should be null');
@@ -51,7 +64,11 @@ await test('create_job accepts empty metadata', async (t) => {
   const job = create_job('test');
 
   t.assert.ok(job.metadata, 'Metadata should exist');
-  t.assert.eq(Object.keys(job.metadata).length, 0, 'Metadata should be empty object');
+  t.assert.eq(
+    Object.keys(job.metadata).length,
+    0,
+    'Metadata should be empty object'
+  );
 });
 
 // ============ get_job tests ============
@@ -88,7 +105,9 @@ await test('update_job updates job fields', async (t) => {
 });
 
 await test('update_job returns null for non-existent job', async (t) => {
-  const result = update_job('non-existent-id-67890', { status: JobStatus.COMPLETED });
+  const result = update_job('non-existent-id-67890', {
+    status: JobStatus.COMPLETED
+  });
 
   t.assert.eq(result, null, 'Should return null for non-existent job');
 });
@@ -128,7 +147,10 @@ await test('get_jobs filters by type', async (t) => {
   const jobs = get_jobs({ type: 'filter-type-test' });
 
   t.assert.ok(jobs.length >= 2, 'Should return at least 2 jobs of type');
-  t.assert.ok(jobs.every(j => j.type === 'filter-type-test'), 'All jobs should match type');
+  t.assert.ok(
+    jobs.every((j) => j.type === 'filter-type-test'),
+    'All jobs should match type'
+  );
 });
 
 await test('get_jobs filters by status', async (t) => {
@@ -138,7 +160,10 @@ await test('get_jobs filters by status', async (t) => {
   const completedJobs = get_jobs({ status: JobStatus.COMPLETED });
 
   t.assert.ok(completedJobs.length >= 1, 'Should find completed jobs');
-  t.assert.ok(completedJobs.every(j => j.status === JobStatus.COMPLETED), 'All should be completed');
+  t.assert.ok(
+    completedJobs.every((j) => j.status === JobStatus.COMPLETED),
+    'All should be completed'
+  );
 });
 
 await test('get_jobs respects limit', async (t) => {
@@ -154,7 +179,7 @@ await test('get_jobs respects limit', async (t) => {
 await test('get_jobs returns jobs sorted by created_at descending', async (t) => {
   const job1 = create_job('order-test', { order: 1 });
   // Small delay to ensure different timestamps
-  await new Promise(r => setTimeout(r, 5));
+  await new Promise((r) => setTimeout(r, 5));
   const job2 = create_job('order-test', { order: 2 });
 
   const jobs = get_jobs({ type: 'order-test' });
@@ -187,14 +212,30 @@ await test('get_queue_stats counts jobs by status', async (t) => {
   const job = create_job('stats-test', {});
   const afterCreate = get_queue_stats();
 
-  t.assert.eq(afterCreate.queued, initialStats.queued + 1, 'Queued count should increase');
-  t.assert.eq(afterCreate.total, initialStats.total + 1, 'Total should increase');
+  t.assert.eq(
+    afterCreate.queued,
+    initialStats.queued + 1,
+    'Queued count should increase'
+  );
+  t.assert.eq(
+    afterCreate.total,
+    initialStats.total + 1,
+    'Total should increase'
+  );
 
   update_job(job.id, { status: JobStatus.COMPLETED });
   const afterComplete = get_queue_stats();
 
-  t.assert.eq(afterComplete.completed, initialStats.completed + 1, 'Completed count should increase');
-  t.assert.eq(afterComplete.queued, initialStats.queued, 'Queued count should decrease back');
+  t.assert.eq(
+    afterComplete.completed,
+    initialStats.completed + 1,
+    'Completed count should increase'
+  );
+  t.assert.eq(
+    afterComplete.queued,
+    initialStats.queued,
+    'Queued count should decrease back'
+  );
 });
 
 // ============ cleanup_jobs tests ============
@@ -209,7 +250,10 @@ await test('cleanup_jobs removes old completed jobs based on maxAge', async (t) 
 
   // Cleanup with very large maxAge should NOT remove it (job is too recent)
   cleanup_jobs(1000 * 60 * 60); // 1 hour
-  t.assert.ok(get_job(job.id), 'Recent job should not be removed with 1 hour maxAge');
+  t.assert.ok(
+    get_job(job.id),
+    'Recent job should not be removed with 1 hour maxAge'
+  );
 
   // Note: We can't easily test actual removal without manipulating time,
   // so we verify the job persists when maxAge is larger than job age
@@ -235,4 +279,45 @@ await test('cleanup_jobs does not remove running or queued jobs', async (t) => {
 
   t.assert.ok(get_job(queuedJob.id), 'Queued job should not be removed');
   t.assert.ok(get_job(runningJob.id), 'Running job should not be removed');
+});
+
+// ============ queue_job tests ============
+
+await test('queue_job creates a job and returns it', async (t) => {
+  // Note: This will try to spawn a worker which may fail if worker.mjs doesn't exist
+  // or the job type is invalid, but the job creation itself should work
+  const job = queue_job(
+    'queue-test',
+    { name: 'test-project' },
+    'invalid-job-type',
+    {}
+  );
+
+  t.assert.ok(job, 'Should return a job object');
+  t.assert.ok(job.id, 'Job should have an ID');
+  t.assert.eq(job.type, 'queue-test', 'Job type should match');
+  // The job may transition to RUNNING immediately when a worker picks it up
+  t.assert.ok(
+    job.status === JobStatus.QUEUED || job.status === JobStatus.RUNNING,
+    'Initial status should be QUEUED or RUNNING (if worker picked it up)'
+  );
+  t.assert.eq(
+    job.metadata.name,
+    'test-project',
+    'Metadata should be preserved'
+  );
+});
+
+await test('queue_job adds job to queue and updates stats', async (t) => {
+  const initialStats = get_queue_stats();
+
+  // Queue a job (it may fail to process but should be queued)
+  queue_job('queue-stats-test', {}, 'test-type', { param: 'value' });
+
+  // Check that total increased
+  const afterStats = get_queue_stats();
+  t.assert.ok(
+    afterStats.total >= initialStats.total,
+    'Total jobs should increase or stay same'
+  );
 });

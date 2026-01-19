@@ -9,27 +9,48 @@ import { test } from 'st';
 import {
   analyze_function_concurrency,
   CONCURRENCY_PATTERNS
-} from '../../lib/concurrency.mjs';
+} from '../../lib/analysis/concurrency.mjs';
 
 // ============ Pattern Configuration Tests ============
 
 await test('CONCURRENCY_PATTERNS has configurations for major languages', async (t) => {
-  const expectedLanguages = ['javascript', 'typescript', 'python', 'java', 'csharp', 'go', 'rust', 'cpp'];
+  const expectedLanguages = [
+    'javascript',
+    'typescript',
+    'python',
+    'java',
+    'csharp',
+    'go',
+    'rust',
+    'cpp'
+  ];
 
   for (const lang of expectedLanguages) {
-    t.assert.eq(CONCURRENCY_PATTERNS[lang] !== undefined, true, `Should have patterns for ${lang}`);
+    t.assert.eq(
+      CONCURRENCY_PATTERNS[lang] !== undefined,
+      true,
+      `Should have patterns for ${lang}`
+    );
   }
 });
 
 await test('each language has async_patterns array', async (t) => {
   for (const [lang, config] of Object.entries(CONCURRENCY_PATTERNS)) {
-    t.assert.eq(Array.isArray(config.async_patterns), true, `${lang} should have async_patterns array`);
+    t.assert.eq(
+      Array.isArray(config.async_patterns),
+      true,
+      `${lang} should have async_patterns array`
+    );
   }
 });
 
 await test('each language has sync_patterns array', async (t) => {
   for (const [lang, config] of Object.entries(CONCURRENCY_PATTERNS)) {
-    t.assert.eq(Array.isArray(config.sync_patterns), true, `${lang} should have sync_patterns array`);
+    t.assert.eq(
+      Array.isArray(config.sync_patterns),
+      true,
+      `${lang} should have sync_patterns array`
+    );
   }
 });
 
@@ -49,9 +70,17 @@ await test('detects JavaScript async function', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.async_patterns.length >= 1, true, 'Should detect async patterns');
-  const types = result.async_patterns.map(p => p.type);
-  t.assert.eq(types.includes('async_function') || types.includes('await'), true, 'Should detect async_function or await');
+  t.assert.eq(
+    result.async_patterns.length >= 1,
+    true,
+    'Should detect async patterns'
+  );
+  const types = result.async_patterns.map((p) => p.type);
+  t.assert.eq(
+    types.includes('async_function') || types.includes('await'),
+    true,
+    'Should detect async_function or await'
+  );
 });
 
 await test('detects JavaScript Promise patterns', async (t) => {
@@ -70,9 +99,17 @@ await test('detects JavaScript Promise patterns', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.async_patterns.length >= 1, true, 'Should detect Promise patterns');
-  const types = result.async_patterns.map(p => p.type);
-  t.assert.eq(types.includes('promise_then'), true, 'Should detect promise_then');
+  t.assert.eq(
+    result.async_patterns.length >= 1,
+    true,
+    'Should detect Promise patterns'
+  );
+  const types = result.async_patterns.map((p) => p.type);
+  t.assert.eq(
+    types.includes('promise_then'),
+    true,
+    'Should detect promise_then'
+  );
 });
 
 await test('detects JavaScript setTimeout/setInterval', async (t) => {
@@ -90,8 +127,12 @@ await test('detects JavaScript setTimeout/setInterval', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.timer_patterns.length >= 2, true, 'Should detect timer patterns');
-  const types = result.timer_patterns.map(p => p.type);
+  t.assert.eq(
+    result.timer_patterns.length >= 2,
+    true,
+    'Should detect timer patterns'
+  );
+  const types = result.timer_patterns.map((p) => p.type);
   t.assert.eq(types.includes('setTimeout'), true, 'Should detect setTimeout');
   t.assert.eq(types.includes('setInterval'), true, 'Should detect setInterval');
 });
@@ -111,8 +152,12 @@ await test('detects JavaScript Web Worker', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.thread_patterns.length >= 1, true, 'Should detect thread patterns');
-  const types = result.thread_patterns.map(p => p.type);
+  t.assert.eq(
+    result.thread_patterns.length >= 1,
+    true,
+    'Should detect thread patterns'
+  );
+  const types = result.thread_patterns.map((p) => p.type);
   t.assert.eq(types.includes('web_worker'), true, 'Should detect web_worker');
 });
 
@@ -132,9 +177,17 @@ await test('detects Python async/await', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.async_patterns.length >= 1, true, 'Should detect async patterns');
-  const types = result.async_patterns.map(p => p.type);
-  t.assert.eq(types.includes('async_function') || types.includes('await'), true, 'Should detect async_function or await');
+  t.assert.eq(
+    result.async_patterns.length >= 1,
+    true,
+    'Should detect async patterns'
+  );
+  const types = result.async_patterns.map((p) => p.type);
+  t.assert.eq(
+    types.includes('async_function') || types.includes('await'),
+    true,
+    'Should detect async_function or await'
+  );
 });
 
 await test('detects Python threading', async (t) => {
@@ -152,8 +205,16 @@ await test('detects Python threading', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.thread_patterns.length >= 1, true, 'Should detect thread patterns');
-  t.assert.eq(result.sync_patterns.length >= 0, true, 'May detect sync patterns');
+  t.assert.eq(
+    result.thread_patterns.length >= 1,
+    true,
+    'Should detect thread patterns'
+  );
+  t.assert.eq(
+    result.sync_patterns.length >= 0,
+    true,
+    'May detect sync patterns'
+  );
 });
 
 // ============ Go Concurrency Detection Tests ============
@@ -175,9 +236,17 @@ await test('detects Go goroutines', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.async_patterns.length >= 1, true, 'Should detect goroutine patterns');
-  const types = result.async_patterns.map(p => p.type);
-  t.assert.eq(types.includes('goroutine_call') || types.includes('goroutine_anon'), true, 'Should detect goroutine');
+  t.assert.eq(
+    result.async_patterns.length >= 1,
+    true,
+    'Should detect goroutine patterns'
+  );
+  const types = result.async_patterns.map((p) => p.type);
+  t.assert.eq(
+    types.includes('goroutine_call') || types.includes('goroutine_anon'),
+    true,
+    'Should detect goroutine'
+  );
 });
 
 await test('detects Go channels and select', async (t) => {
@@ -200,9 +269,19 @@ await test('detects Go channels and select', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.sync_patterns.length >= 1, true, 'Should detect channel patterns');
-  const types = result.sync_patterns.map(p => p.type);
-  t.assert.eq(types.includes('channel_make') || types.includes('channel_send') || types.includes('channel_receive'), true, 'Should detect channel operations');
+  t.assert.eq(
+    result.sync_patterns.length >= 1,
+    true,
+    'Should detect channel patterns'
+  );
+  const types = result.sync_patterns.map((p) => p.type);
+  t.assert.eq(
+    types.includes('channel_make') ||
+      types.includes('channel_send') ||
+      types.includes('channel_receive'),
+    true,
+    'Should detect channel operations'
+  );
 });
 
 await test('detects Go mutex', async (t) => {
@@ -222,9 +301,17 @@ await test('detects Go mutex', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.sync_patterns.length >= 1, true, 'Should detect mutex patterns');
-  const types = result.sync_patterns.map(p => p.type);
-  t.assert.eq(types.includes('mutex') || types.includes('lock_acquire'), true, 'Should detect mutex');
+  t.assert.eq(
+    result.sync_patterns.length >= 1,
+    true,
+    'Should detect mutex patterns'
+  );
+  const types = result.sync_patterns.map((p) => p.type);
+  t.assert.eq(
+    types.includes('mutex') || types.includes('lock_acquire'),
+    true,
+    'Should detect mutex'
+  );
 });
 
 // ============ Java Concurrency Detection Tests ============
@@ -245,9 +332,17 @@ await test('detects Java synchronized', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.sync_patterns.length >= 1, true, 'Should detect synchronized');
-  const types = result.sync_patterns.map(p => p.type);
-  t.assert.eq(types.includes('synchronized_block'), true, 'Should detect synchronized_block');
+  t.assert.eq(
+    result.sync_patterns.length >= 1,
+    true,
+    'Should detect synchronized'
+  );
+  const types = result.sync_patterns.map((p) => p.type);
+  t.assert.eq(
+    types.includes('synchronized_block'),
+    true,
+    'Should detect synchronized_block'
+  );
 });
 
 await test('detects Java ExecutorService', async (t) => {
@@ -265,9 +360,17 @@ await test('detects Java ExecutorService', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.thread_patterns.length >= 1, true, 'Should detect thread patterns');
-  const types = result.thread_patterns.map(p => p.type);
-  t.assert.eq(types.includes('executor') || types.includes('executors_factory'), true, 'Should detect ExecutorService');
+  t.assert.eq(
+    result.thread_patterns.length >= 1,
+    true,
+    'Should detect thread patterns'
+  );
+  const types = result.thread_patterns.map((p) => p.type);
+  t.assert.eq(
+    types.includes('executor') || types.includes('executors_factory'),
+    true,
+    'Should detect ExecutorService'
+  );
 });
 
 // ============ Rust Concurrency Detection Tests ============
@@ -287,9 +390,17 @@ await test('detects Rust async/await', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.async_patterns.length >= 1, true, 'Should detect async patterns');
-  const types = result.async_patterns.map(p => p.type);
-  t.assert.eq(types.includes('async_function') || types.includes('await'), true, 'Should detect async_function or await');
+  t.assert.eq(
+    result.async_patterns.length >= 1,
+    true,
+    'Should detect async patterns'
+  );
+  const types = result.async_patterns.map((p) => p.type);
+  t.assert.eq(
+    types.includes('async_function') || types.includes('await'),
+    true,
+    'Should detect async_function or await'
+  );
 });
 
 await test('detects Rust Mutex and Arc', async (t) => {
@@ -307,9 +418,17 @@ await test('detects Rust Mutex and Arc', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.sync_patterns.length >= 1, true, 'Should detect sync patterns');
-  const types = result.sync_patterns.map(p => p.type);
-  t.assert.eq(types.includes('mutex') || types.includes('arc'), true, 'Should detect Mutex or Arc');
+  t.assert.eq(
+    result.sync_patterns.length >= 1,
+    true,
+    'Should detect sync patterns'
+  );
+  const types = result.sync_patterns.map((p) => p.type);
+  t.assert.eq(
+    types.includes('mutex') || types.includes('arc'),
+    true,
+    'Should detect Mutex or Arc'
+  );
 });
 
 // ============ C++ Concurrency Detection Tests ============
@@ -329,8 +448,12 @@ await test('detects C++ std::thread', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.thread_patterns.length >= 1, true, 'Should detect thread patterns');
-  const types = result.thread_patterns.map(p => p.type);
+  t.assert.eq(
+    result.thread_patterns.length >= 1,
+    true,
+    'Should detect thread patterns'
+  );
+  const types = result.thread_patterns.map((p) => p.type);
   t.assert.eq(types.includes('thread'), true, 'Should detect std::thread');
 });
 
@@ -349,8 +472,12 @@ await test('detects C++ mutex and lock_guard', async (t) => {
 
   const result = analyze_function_concurrency(fn);
 
-  t.assert.eq(result.sync_patterns.length >= 1, true, 'Should detect sync patterns');
-  const types = result.sync_patterns.map(p => p.type);
+  t.assert.eq(
+    result.sync_patterns.length >= 1,
+    true,
+    'Should detect sync patterns'
+  );
+  const types = result.sync_patterns.map((p) => p.type);
   t.assert.eq(types.includes('lock_guard'), true, 'Should detect lock_guard');
 });
 
@@ -373,7 +500,11 @@ await test('warns when async code has no synchronization', async (t) => {
   const result = analyze_function_concurrency(fn);
 
   // Should have async patterns but no sync patterns
-  t.assert.eq(result.async_patterns.length >= 1, true, 'Should detect async patterns');
+  t.assert.eq(
+    result.async_patterns.length >= 1,
+    true,
+    'Should detect async patterns'
+  );
   // May or may not trigger warning depending on heuristics
 });
 
@@ -396,7 +527,11 @@ await test('returns empty results for non-concurrent code', async (t) => {
   const result = analyze_function_concurrency(fn);
 
   t.assert.eq(result.async_patterns.length, 0, 'Should have no async patterns');
-  t.assert.eq(result.thread_patterns.length, 0, 'Should have no thread patterns');
+  t.assert.eq(
+    result.thread_patterns.length,
+    0,
+    'Should have no thread patterns'
+  );
   t.assert.eq(result.sync_patterns.length, 0, 'Should have no sync patterns');
   t.assert.eq(result.timer_patterns.length, 0, 'Should have no timer patterns');
 });

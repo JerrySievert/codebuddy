@@ -9,15 +9,29 @@ import { test } from 'st';
 import {
   analyze_function_resources,
   RESOURCE_PATTERNS
-} from '../../lib/resources.mjs';
+} from '../../lib/analysis/resources.mjs';
 
 // ============ Pattern Configuration Tests ============
 
 await test('RESOURCE_PATTERNS has configurations for major languages', async (t) => {
-  const expectedLanguages = ['c', 'cpp', 'javascript', 'typescript', 'python', 'java', 'csharp', 'go', 'rust'];
+  const expectedLanguages = [
+    'c',
+    'cpp',
+    'javascript',
+    'typescript',
+    'python',
+    'java',
+    'csharp',
+    'go',
+    'rust'
+  ];
 
   for (const lang of expectedLanguages) {
-    t.assert.eq(RESOURCE_PATTERNS[lang] !== undefined, true, `Should have patterns for ${lang}`);
+    t.assert.eq(
+      RESOURCE_PATTERNS[lang] !== undefined,
+      true,
+      `Should have patterns for ${lang}`
+    );
   }
 });
 
@@ -59,7 +73,11 @@ await test('detects C potential memory leak', async (t) => {
   const result = analyze_function_resources(fn);
 
   t.assert.eq(result.acquisitions.length >= 1, true, 'Should detect malloc');
-  t.assert.eq(result.potential_leaks.length >= 1, true, 'Should detect potential leak');
+  t.assert.eq(
+    result.potential_leaks.length >= 1,
+    true,
+    'Should detect potential leak'
+  );
 });
 
 await test('detects C file operations', async (t) => {
@@ -98,9 +116,17 @@ await test('detects C++ smart pointers as safe patterns', async (t) => {
 
   const result = analyze_function_resources(fn);
 
-  t.assert.eq(result.safe_patterns.length >= 1, true, 'Should detect safe smart pointer patterns');
-  const names = result.safe_patterns.map(p => p.name);
-  t.assert.eq(names.includes('make_unique') || names.includes('make_shared'), true, 'Should detect make_unique or make_shared');
+  t.assert.eq(
+    result.safe_patterns.length >= 1,
+    true,
+    'Should detect safe smart pointer patterns'
+  );
+  const names = result.safe_patterns.map((p) => p.name);
+  t.assert.eq(
+    names.includes('make_unique') || names.includes('make_shared'),
+    true,
+    'Should detect make_unique or make_shared'
+  );
 });
 
 await test('detects C++ new/delete', async (t) => {
@@ -137,8 +163,12 @@ await test('warns about raw new without smart pointers', async (t) => {
   const result = analyze_function_resources(fn);
 
   t.assert.eq(result.warnings.length >= 1, true, 'Should warn about raw new');
-  const ids = result.warnings.map(w => w.id);
-  t.assert.eq(ids.includes('raw_new_without_smart_ptr'), true, 'Should have raw_new_without_smart_ptr warning');
+  const ids = result.warnings.map((w) => w.id);
+  t.assert.eq(
+    ids.includes('raw_new_without_smart_ptr'),
+    true,
+    'Should have raw_new_without_smart_ptr warning'
+  );
 });
 
 await test('detects C++ RAII lock patterns', async (t) => {
@@ -156,8 +186,12 @@ await test('detects C++ RAII lock patterns', async (t) => {
 
   const result = analyze_function_resources(fn);
 
-  t.assert.eq(result.safe_patterns.length >= 1, true, 'Should detect RAII lock');
-  const names = result.safe_patterns.map(p => p.name);
+  t.assert.eq(
+    result.safe_patterns.length >= 1,
+    true,
+    'Should detect RAII lock'
+  );
+  const names = result.safe_patterns.map((p) => p.name);
   t.assert.eq(names.includes('lock_guard'), true, 'Should detect lock_guard');
 });
 
@@ -178,7 +212,11 @@ await test('detects JavaScript setTimeout/clearTimeout', async (t) => {
 
   const result = analyze_function_resources(fn);
 
-  t.assert.eq(result.acquisitions.length >= 1, true, 'Should detect setTimeout');
+  t.assert.eq(
+    result.acquisitions.length >= 1,
+    true,
+    'Should detect setTimeout'
+  );
   t.assert.eq(result.releases.length >= 1, true, 'Should detect clearTimeout');
 });
 
@@ -196,8 +234,16 @@ await test('detects JavaScript event listener leak', async (t) => {
 
   const result = analyze_function_resources(fn);
 
-  t.assert.eq(result.acquisitions.length >= 1, true, 'Should detect addEventListener');
-  t.assert.eq(result.potential_leaks.length >= 1, true, 'Should detect potential listener leak');
+  t.assert.eq(
+    result.acquisitions.length >= 1,
+    true,
+    'Should detect addEventListener'
+  );
+  t.assert.eq(
+    result.potential_leaks.length >= 1,
+    true,
+    'Should detect potential listener leak'
+  );
 });
 
 // ============ Python Context Manager Tests ============
@@ -216,7 +262,11 @@ await test('detects Python with statement as safe', async (t) => {
 
   const result = analyze_function_resources(fn);
 
-  t.assert.eq(result.safe_patterns.length >= 1, true, 'Should detect with statement as safe');
+  t.assert.eq(
+    result.safe_patterns.length >= 1,
+    true,
+    'Should detect with statement as safe'
+  );
 });
 
 await test('detects Python file handle leak', async (t) => {
@@ -255,7 +305,11 @@ await test('detects Java try-with-resources as safe', async (t) => {
 
   const result = analyze_function_resources(fn);
 
-  t.assert.eq(result.safe_patterns.length >= 1, true, 'Should detect try-with-resources as safe');
+  t.assert.eq(
+    result.safe_patterns.length >= 1,
+    true,
+    'Should detect try-with-resources as safe'
+  );
 });
 
 await test('detects Java stream without close', async (t) => {
@@ -273,7 +327,11 @@ await test('detects Java stream without close', async (t) => {
 
   const result = analyze_function_resources(fn);
 
-  t.assert.eq(result.acquisitions.length >= 1, true, 'Should detect stream creation');
+  t.assert.eq(
+    result.acquisitions.length >= 1,
+    true,
+    'Should detect stream creation'
+  );
 });
 
 // ============ C# Resource Tests ============
@@ -294,7 +352,11 @@ await test('detects C# using statement as safe', async (t) => {
 
   const result = analyze_function_resources(fn);
 
-  t.assert.eq(result.safe_patterns.length >= 1, true, 'Should detect using statement as safe');
+  t.assert.eq(
+    result.safe_patterns.length >= 1,
+    true,
+    'Should detect using statement as safe'
+  );
 });
 
 // ============ Go Resource Tests ============
@@ -315,7 +377,11 @@ await test('detects Go defer as safe pattern', async (t) => {
 
   const result = analyze_function_resources(fn);
 
-  t.assert.eq(result.safe_patterns.length >= 1, true, 'Should detect defer as safe');
+  t.assert.eq(
+    result.safe_patterns.length >= 1,
+    true,
+    'Should detect defer as safe'
+  );
 });
 
 await test('detects Go file handle without defer', async (t) => {
@@ -354,7 +420,11 @@ await test('detects Rust ownership patterns as safe', async (t) => {
 
   const result = analyze_function_resources(fn);
 
-  t.assert.eq(result.safe_patterns.length >= 1, true, 'Should detect Box/Arc as safe');
+  t.assert.eq(
+    result.safe_patterns.length >= 1,
+    true,
+    'Should detect Box/Arc as safe'
+  );
 });
 
 await test('detects Rust File as safe RAII', async (t) => {
@@ -374,7 +444,11 @@ await test('detects Rust File as safe RAII', async (t) => {
 
   const result = analyze_function_resources(fn);
 
-  t.assert.eq(result.safe_patterns.length >= 1, true, 'Should detect File as safe RAII');
+  t.assert.eq(
+    result.safe_patterns.length >= 1,
+    true,
+    'Should detect File as safe RAII'
+  );
 });
 
 // ============ No Resources Detection Tests ============
@@ -398,5 +472,9 @@ await test('returns empty results for code without resources', async (t) => {
   t.assert.eq(result.acquisitions.length, 0, 'Should have no acquisitions');
   t.assert.eq(result.releases.length, 0, 'Should have no releases');
   t.assert.eq(result.safe_patterns.length, 0, 'Should have no safe patterns');
-  t.assert.eq(result.potential_leaks.length, 0, 'Should have no potential leaks');
+  t.assert.eq(
+    result.potential_leaks.length,
+    0,
+    'Should have no potential leaks'
+  );
 });
