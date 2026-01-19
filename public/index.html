@@ -43,6 +43,55 @@
               Read-Only
             </span>
           </div>
+          <!-- Global Search -->
+          <div class="header-search">
+            <div class="global-search-wrapper">
+              <input
+                v-model="globalSearchQuery"
+                @input="onGlobalSearchInput"
+                @keydown.down.prevent="navigateGlobalAutocomplete(1)"
+                @keydown.up.prevent="navigateGlobalAutocomplete(-1)"
+                @keydown.enter.prevent="selectGlobalAutocompleteItem"
+                @keydown.escape="closeGlobalAutocomplete"
+                @focus="showGlobalAutocomplete = globalSearchSuggestions.length > 0"
+                @blur="onGlobalSearchBlur"
+                placeholder="Search all projects..."
+                autocomplete="off"
+                class="global-search-input"
+              />
+              <div
+                v-if="showGlobalAutocomplete && globalSearchSuggestions.length > 0"
+                class="global-autocomplete-dropdown"
+              >
+                <div
+                  v-for="(fn, index) in globalSearchSuggestions"
+                  :key="fn.id"
+                  class="autocomplete-item"
+                  :class="{ highlighted: globalAutocompleteIndex === index }"
+                  @mousedown.prevent="selectGlobalSuggestion(fn)"
+                  @mouseenter="globalAutocompleteIndex = index"
+                >
+                  <div class="autocomplete-name">
+                    <span class="entity-type-badge" :class="fn.type"
+                      >{{ fn.type }}</span
+                    >
+                    {{ fn.symbol }}{{ fn.parameters || '' }}
+                  </div>
+                  <div class="autocomplete-location">
+                    <span class="autocomplete-project"
+                      >{{ fn.project_name }}</span
+                    >
+                    <span class="autocomplete-file"
+                      >{{ fn.filename }}:{{ fn.start_line }}</span
+                    >
+                  </div>
+                </div>
+                <div class="autocomplete-hint">
+                  Press Enter to see all results
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="header-nav">
             <button
               v-if="selectedProject"
@@ -107,10 +156,18 @@
                     <button
                       class="btn-refresh"
                       @click="refreshProject(project.name)"
-                      :disabled="refreshingProject === project.name"
+                      :disabled="refreshingProject === project.name || deletingProject"
                     >
                       {{ refreshingProject === project.name ? 'Refreshing...' :
                       'Refresh' }}
+                    </button>
+                    <button
+                      class="btn-delete"
+                      @click="showDeleteConfirmation(project.name)"
+                      :disabled="refreshingProject === project.name || deletingProject"
+                      title="Delete project"
+                    >
+                      Delete
                     </button>
                   </div>
                 </div>
@@ -119,8 +176,72 @@
           </div>
 
           <div class="main">
-            <!-- Search Card -->
-            <div class="card">
+            <!-- Home Page - show when no project is selected and not in other views -->
+            <div
+              v-if="!selectedProject && !showJobsView && !showGlobalSearchResults"
+              class="home-page"
+            >
+              <div class="home-hero">
+                <img
+                  src="/image/codebuddy.png"
+                  alt="CodeBuddy"
+                  class="home-logo"
+                />
+                <h1 class="home-title">CodeBuddy</h1>
+                <p class="home-tagline">
+                  Your intelligent code analysis companion
+                </p>
+              </div>
+
+              <div class="home-stats">
+                <div class="stat-card">
+                  <div class="stat-value">
+                    {{ formatNumber(globalStats.projects) }}
+                  </div>
+                  <div class="stat-label">Projects</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">
+                    {{ formatNumber(globalStats.files) }}
+                  </div>
+                  <div class="stat-label">Files</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">
+                    {{ formatNumber(globalStats.entities) }}
+                  </div>
+                  <div class="stat-label">Entities</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">
+                    {{ globalStats.languages.length }}
+                  </div>
+                  <div class="stat-label">Languages</div>
+                  <div
+                    class="stat-languages"
+                    v-if="globalStats.languages.length > 0"
+                  >
+                    {{ globalStats.languages.join(', ') }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="home-hint" v-if="projects.length === 0">
+                <p>
+                  Get started by importing a project using the
+                  <strong>+ Import</strong> button in the sidebar.
+                </p>
+              </div>
+              <div class="home-hint" v-else>
+                <p>Select a project from the sidebar to explore its code.</p>
+              </div>
+            </div>
+
+            <!-- Search Card - only show when a project is selected -->
+            <div
+              v-if="selectedProject && !showCallGraph && !showJobsView && !showAnalysisView"
+              class="card"
+            >
               <h2>Search</h2>
               <div class="search-box-autocomplete">
                 <div class="autocomplete-wrapper">
@@ -197,7 +318,10 @@
             </div>
 
             <!-- Call Graph / Flowchart View -->
-            <div v-if="showCallGraph && !showAnalysisView" class="card">
+            <div
+              v-if="showCallGraph && !showAnalysisView && !showGlobalSearchResults && !showJobsView"
+              class="card"
+            >
               <div class="breadcrumb">
                 <span class="breadcrumb-item" @click="closeCallGraph"
                   >{{ selectedProject?.name }}</span
@@ -382,11 +506,22 @@
                   functions in this project.
                 </div>
               </div>
-              <div v-else class="graph-container" ref="graphContainer">
+              <div
+                v-else
+                class="graph-container"
+                :class="{ 'fullscreen': callGraphFullscreen }"
+                ref="graphContainer"
+              >
                 <div class="graph-controls">
                   <button @click="zoomIn">Zoom In</button>
                   <button @click="zoomOut">Zoom Out</button>
                   <button @click="resetZoom">Reset</button>
+                  <button
+                    class="fullscreen-btn"
+                    @click="toggleCallGraphFullscreen"
+                  >
+                    {{ callGraphFullscreen ? '✕ Close' : '⛶ Fullscreen' }}
+                  </button>
                 </div>
                 <svg class="graph-svg" ref="graphSvg"></svg>
                 <div v-if="selectedGraphNode" class="node-info-panel">
@@ -454,14 +589,28 @@
                         class="legend-circle"
                         style="background: #fce4ec; border-color: #e91e63"
                       ></div>
-                      <span>Root function</span>
+                      <span>Root (depth 0)</span>
                     </div>
                     <div class="legend-item">
                       <div
                         class="legend-circle"
                         style="background: #e3f2fd; border-color: #2196f3"
                       ></div>
-                      <span>Related functions</span>
+                      <span>Depth 1</span>
+                    </div>
+                    <div class="legend-item">
+                      <div
+                        class="legend-circle"
+                        style="background: #e8f5e9; border-color: #4caf50"
+                      ></div>
+                      <span>Depth 2</span>
+                    </div>
+                    <div class="legend-item">
+                      <div
+                        class="legend-circle"
+                        style="background: #fff3e0; border-color: #ff9800"
+                      ></div>
+                      <span>Depth 3+</span>
                     </div>
                     <div class="legend-item">
                       <span style="color: #999"
@@ -506,8 +655,87 @@
               </div>
             </div>
 
+            <!-- Global Search Results View -->
+            <div v-if="showGlobalSearchResults && !showJobsView" class="card">
+              <div class="search-results-header">
+                <h2>Search Results</h2>
+                <span class="search-results-query"
+                  >for "{{ globalSearchQuery }}"</span
+                >
+                <button
+                  class="btn-close"
+                  @click="closeGlobalSearchResults"
+                  title="Close search results"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div
+                v-if="globalSearchLoading && globalSearchResults.length === 0"
+                class="loading"
+              >
+                Searching...
+              </div>
+
+              <div
+                v-else-if="globalSearchResults.length === 0"
+                class="empty-state"
+              >
+                No results found for "{{ globalSearchQuery }}"
+              </div>
+
+              <div v-else class="search-results-list">
+                <div class="search-results-table">
+                  <div class="search-results-table-header">
+                    <span class="col-type">Type</span>
+                    <span class="col-name">Name</span>
+                    <span class="col-project">Project</span>
+                    <span class="col-file">File</span>
+                    <span class="col-line">Line</span>
+                  </div>
+                  <div
+                    v-for="result in globalSearchResults"
+                    :key="result.id"
+                    class="search-results-row"
+                    @click="selectGlobalSuggestion(result)"
+                  >
+                    <span class="col-type">
+                      <span class="entity-type-badge" :class="result.type"
+                        >{{ result.type }}</span
+                      >
+                    </span>
+                    <span class="col-name"
+                      >{{ result.symbol }}{{ result.parameters || '' }}</span
+                    >
+                    <span class="col-project">{{ result.project_name }}</span>
+                    <span class="col-file">{{ result.filename }}</span>
+                    <span class="col-line">{{ result.start_line }}</span>
+                  </div>
+                </div>
+
+                <div v-if="globalSearchHasMore" class="load-more-container">
+                  <button
+                    class="btn-load-more"
+                    @click="loadMoreGlobalResults"
+                    :disabled="globalSearchLoading"
+                  >
+                    {{ globalSearchLoading ? 'Loading...' : 'Load More Results'
+                    }}
+                  </button>
+                </div>
+
+                <div class="search-results-count">
+                  Showing {{ globalSearchResults.length }} results
+                </div>
+              </div>
+            </div>
+
             <!-- Jobs View -->
-            <div v-if="showJobsView && !showAnalysisView" class="card">
+            <div
+              v-if="showJobsView && !showAnalysisView && !showGlobalSearchResults && !showCallGraph"
+              class="card"
+            >
               <h2>Job Queue</h2>
 
               <!-- Stats Summary -->
@@ -548,11 +776,7 @@
                 >
                   <div class="job-card-header">
                     <div class="job-card-title">
-                      <span class="job-type-badge">{{ job.type }}</span>
-                      <span class="job-name"
-                        >{{ job.metadata?.name || job.metadata?.path || job.id
-                        }}</span
-                      >
+                      <span class="job-name">{{ formatJobTitle(job) }}</span>
                     </div>
                     <span class="job-status-badge" :class="job.status"
                       >{{ job.status }}</span
@@ -621,7 +845,7 @@
 
             <!-- Analysis View -->
             <div
-              v-if="showAnalysisView && selectedProject"
+              v-if="showAnalysisView && selectedProject && !showGlobalSearchResults"
               class="analysis-dashboard"
             >
               <!-- Loading State -->
@@ -3835,14 +4059,28 @@
                         class="legend-circle"
                         style="background: #fce4ec; border-color: #e91e63"
                       ></div>
-                      <span>Root function</span>
+                      <span>Root (depth 0)</span>
                     </div>
                     <div class="legend-item">
                       <div
                         class="legend-circle"
                         style="background: #e3f2fd; border-color: #2196f3"
                       ></div>
-                      <span>Related functions</span>
+                      <span>Depth 1</span>
+                    </div>
+                    <div class="legend-item">
+                      <div
+                        class="legend-circle"
+                        style="background: #e8f5e9; border-color: #4caf50"
+                      ></div>
+                      <span>Depth 2</span>
+                    </div>
+                    <div class="legend-item">
+                      <div
+                        class="legend-circle"
+                        style="background: #fff3e0; border-color: #ff9800"
+                      ></div>
+                      <span>Depth 3+</span>
                     </div>
                     <div class="legend-item">
                       <span style="color: #999"
@@ -4092,13 +4330,10 @@
           </div>
           <div v-for="job in jobs" :key="job.id" class="job-item">
             <div class="job-item-header">
-              <span class="job-item-type">{{ job.type }}</span>
+              <span class="job-item-name">{{ formatJobTitle(job) }}</span>
               <span class="job-item-status" :class="job.status"
                 >{{ job.status }}</span
               >
-            </div>
-            <div class="job-item-meta">
-              {{ job.metadata?.name || job.metadata?.path || job.id }}
             </div>
             <div class="job-progress-bar">
               <div
@@ -4177,6 +4412,47 @@
               :disabled="!importPath || importing"
             >
               {{ importing ? 'Importing...' : 'Import Project' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delete Project Confirmation Modal -->
+      <div
+        v-if="showDeleteModal"
+        class="modal-overlay"
+        @click.self="closeDeleteModal"
+      >
+        <div class="modal modal-confirm">
+          <div class="modal-header">
+            <h3>Delete Project</h3>
+            <button class="modal-close" @click="closeDeleteModal">
+              &times;
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="delete-warning">
+              <div class="delete-warning-icon">&#9888;</div>
+              <p>
+                Are you sure you want to delete
+                <strong>{{ deleteProjectName }}</strong>?
+              </p>
+              <p class="delete-warning-text">
+                This will permanently remove all parsed data including
+                functions, classes, relationships, and analysis results. This
+                action cannot be undone.
+              </p>
+              <p class="delete-warning-note">
+                Note: Your original source files will not be affected.
+              </p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" @click="closeDeleteModal">
+              Cancel
+            </button>
+            <button class="btn-danger" @click="confirmDeleteProject">
+              Delete Project
             </button>
           </div>
         </div>

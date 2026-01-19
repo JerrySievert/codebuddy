@@ -194,6 +194,18 @@ export const create_call_graph_handlers = (
     }
   };
 
+  /**
+   * Toggle fullscreen for main call graph.
+   */
+  const toggle_call_graph_fullscreen = () => {
+    state.call_graph_fullscreen.value = !state.call_graph_fullscreen.value;
+    nextTick(() => {
+      if (state.call_graph_data.value) {
+        call_graph_renderer.render_graph();
+      }
+    });
+  };
+
   return {
     open_call_graph,
     load_call_graph_for_node,
@@ -203,7 +215,8 @@ export const create_call_graph_handlers = (
     load_tree_view,
     reload_tree_view,
     recenter_tree_on_node,
-    view_function_details
+    view_function_details,
+    toggle_call_graph_fullscreen
   };
 };
 

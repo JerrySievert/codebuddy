@@ -404,26 +404,127 @@ export const create_import_handlers = (
    * Toggle jobs view.
    */
   const toggle_jobs_view = async () => {
-    state.show_jobs_view.value = !state.show_jobs_view.value;
+    // If already showing jobs, just close it
     if (state.show_jobs_view.value) {
-      // Clear other views when showing jobs
-      state.selected_project.value = null;
-      state.selected_file.value = null;
-      state.selected_function.value = null;
-      state.show_call_graph.value = false;
-      state.showing_all_functions.value = false;
-      state.show_analysis_view.value = false;
-      // Refresh job data
+      state.show_jobs_view.value = false;
+      update_url();
+      return;
+    }
+
+    // Show jobs view and clear all other views
+    state.show_jobs_view.value = true;
+    state.selected_project.value = null;
+    state.selected_file.value = null;
+    state.selected_function.value = null;
+    state.show_call_graph.value = false;
+    state.showing_all_functions.value = false;
+    state.show_analysis_view.value = false;
+    state.show_global_search_results.value = false;
+
+    // Refresh job data
+    await job_manager.load_job_queue();
+    job_manager.start_job_polling();
+
+    update_url();
+  };
+
+  /**
+   * Show delete confirmation modal.
+   * @param {string} project_name - Name of project to delete
+   */
+  const show_delete_confirmation = (project_name) => {
+    state.delete_project_name.value = project_name;
+    state.show_delete_modal.value = true;
+  };
+
+  /**
+   * Close delete confirmation modal.
+   */
+  const close_delete_modal = () => {
+    state.show_delete_modal.value = false;
+    state.delete_project_name.value = null;
+  };
+
+  /**
+   * Setup delete job subscription with callbacks.
+   * @param {string} job_id - Job ID
+   * @param {string} project_name - Project name being deleted
+   */
+  const setup_delete_job_subscription = (job_id, project_name) => {
+    job_manager.subscribe_to_job(
+      job_id,
+      async () => {
+        // Job completed successfully
+        state.deleting_project.value = false;
+
+        // Refresh projects list and job queue
+        await load_projects();
+        await job_manager.load_job_queue();
+
+        // Clear selected project if it was the deleted one
+        if (state.selected_project.value?.name === project_name) {
+          state.selected_project.value = null;
+          state.selected_file.value = null;
+          state.selected_function.value = null;
+          update_url();
+        }
+      },
+      async (error) => {
+        // Job failed
+        state.deleting_project.value = false;
+        await job_manager.load_job_queue();
+        alert(error || 'Failed to delete project');
+      }
+    );
+  };
+
+  /**
+   * Delete a project after confirmation.
+   */
+  const confirm_delete_project = async () => {
+    const project_name = state.delete_project_name.value;
+    if (!project_name) return;
+
+    // Check for read-only mode
+    if (state.server_read_only.value) {
+      state.show_delete_modal.value = false;
+      state.show_read_only_modal.value = true;
+      return;
+    }
+
+    state.deleting_project.value = true;
+    state.show_delete_modal.value = false;
+
+    try {
+      const result = await api.delete_project(project_name);
+
+      if (result.error) {
+        alert(result.error);
+        state.deleting_project.value = false;
+        return;
+      }
+
+      // Load job queue and subscribe to updates
       await job_manager.load_job_queue();
       job_manager.start_job_polling();
+
+      // Subscribe to job updates
+      if (result.job_id) {
+        setup_delete_job_subscription(result.job_id, project_name);
+      }
+    } catch (error) {
+      alert(error.message || 'Failed to delete project');
+      state.deleting_project.value = false;
     }
-    update_url();
   };
 
   return {
     close_import_modal,
     import_project,
     refresh_project,
-    toggle_jobs_view
+    toggle_jobs_view,
+    show_delete_confirmation,
+    close_delete_modal,
+    confirm_delete_project
   };
 };

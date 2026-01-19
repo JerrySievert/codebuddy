@@ -18,6 +18,20 @@ export const load_server_status = async () => {
 };
 
 /**
+ * Load global statistics.
+ * @returns {Promise<Object>} Global stats (projects, entities, files, languages)
+ */
+export const load_global_stats = async () => {
+  try {
+    const response = await fetch('/api/v1/stats');
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to load global stats:', error);
+    return { projects: 0, entities: 0, files: 0, languages: [] };
+  }
+};
+
+/**
  * Load all projects.
  * @returns {Promise<Array>} List of projects
  */
@@ -102,13 +116,20 @@ export const load_all_functions = async (project_name) => {
  * @param {string} query - Search query
  * @param {string|null} project_name - Optional project name
  * @param {number} limit - Result limit
+ * @param {number} offset - Result offset for pagination
  * @returns {Promise<Array>} Search results
  */
-export const search_entities = async (query, project_name = null, limit = 50) => {
+export const search_entities = async (
+  query,
+  project_name = null,
+  limit = 50,
+  offset = 0
+) => {
   try {
     const project_param = project_name ? `&project=${project_name}` : '';
+    const offset_param = offset > 0 ? `&offset=${offset}` : '';
     const response = await fetch(
-      `/api/v1/entities/search?name=${encodeURIComponent(query)}${project_param}&limit=${limit}`
+      `/api/v1/entities/search?name=${encodeURIComponent(query)}${project_param}&limit=${limit}${offset_param}`
     );
     return await response.json();
   } catch (error) {
@@ -344,6 +365,26 @@ export const refresh_project = async (project_name) => {
     return result;
   } catch (error) {
     return { error: error.message || 'Failed to refresh project' };
+  }
+};
+
+/**
+ * Delete a project.
+ * @param {string} project_name - Project name
+ * @returns {Promise<Object>} Delete result
+ */
+export const delete_project = async (project_name) => {
+  try {
+    const response = await fetch(`/api/v1/projects/${project_name}`, {
+      method: 'DELETE'
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      return { error: result.error || 'Failed to delete project' };
+    }
+    return result;
+  } catch (error) {
+    return { error: error.message || 'Failed to delete project' };
   }
 };
 

@@ -17,6 +17,7 @@ import './lib/class_struct_parsing.mjs';
 import './lib/mcp_tools.mjs';
 import './lib/mcp_handlers.mjs';
 import './lib/api_routes.mjs';
+import './lib/api_stats_delete.mjs';
 import './lib/concurrency.mjs';
 import './lib/resources.mjs';
 import './lib/callgraph.mjs';

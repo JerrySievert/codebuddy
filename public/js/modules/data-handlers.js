@@ -20,11 +20,24 @@ export const create_data_handlers = (state, api, navigation) => {
   };
 
   /**
+   * Load global statistics.
+   */
+  const load_global_stats = async () => {
+    try {
+      state.global_stats.value = await api.load_global_stats();
+    } catch (error) {
+      console.error('Failed to load global stats:', error);
+    }
+  };
+
+  /**
    * Load all projects.
    */
   const load_projects = async () => {
     try {
       state.projects.value = await api.load_projects();
+      // Also refresh global stats when projects are loaded
+      await load_global_stats();
     } catch (error) {
       console.error('Failed to load projects:', error);
     } finally {

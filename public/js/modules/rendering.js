@@ -722,6 +722,14 @@ export const create_call_graph_renderer = (state, d3) => {
       return;
     }
 
+    // Calculate depth for each node using BFS from root
+    const node_depths = calculate_node_depths(nodes, edges, root_id);
+
+    // Store depth on nodes for color-coding
+    nodes.forEach((n) => {
+      n.depth = node_depths.get(n.id) || 0;
+    });
+
     // Create links
     const links = edges
       .map((e) => ({
@@ -737,7 +745,7 @@ export const create_call_graph_renderer = (state, d3) => {
     // Draw links
     const link = draw_graph_links(g, links, 'arrowhead');
 
-    // Draw nodes
+    // Draw nodes with depth-based colors
     const drag_behavior = create_drag_behavior(d3, simulation);
     const node = draw_graph_nodes(
       g,
@@ -752,7 +760,8 @@ export const create_call_graph_renderer = (state, d3) => {
           'highlighted',
           (l) => l.source.id === d.id || l.target.id === d.id
         );
-      }
+      },
+      { use_depth_colors: true }
     );
 
     // Setup tick handler

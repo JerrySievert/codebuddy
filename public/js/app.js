@@ -23,7 +23,10 @@ import {
   create_formatters
 } from './modules/analysis.js';
 import { create_data_handlers } from './modules/data-handlers.js';
-import { create_search_handlers } from './modules/search-handlers.js';
+import {
+  create_search_handlers,
+  create_global_search_handlers
+} from './modules/search-handlers.js';
 import {
   create_call_graph_handlers,
   create_flowchart_handlers,
@@ -63,6 +66,13 @@ createApp({
       state,
       api,
       function_handlers.select_function
+    );
+
+    // Create global search handlers (for header search)
+    const global_search_handlers = create_global_search_handlers(
+      state,
+      api,
+      () => navigation?.update_url()
     );
 
     // Create graph handlers
@@ -117,7 +127,9 @@ createApp({
         analysis_handlers.load_analysis_dashboard(),
       load_analysis_detail: (type) =>
         analysis_handlers.load_analysis_detail(type),
-      stop_simulation: () => call_graph_renderer.stop_simulation()
+      stop_simulation: () => call_graph_renderer.stop_simulation(),
+      execute_global_search: () =>
+        global_search_handlers.execute_global_search()
     };
 
     // Now create the actual navigation
@@ -234,6 +246,14 @@ createApp({
       // Escape key to close fullscreen
       window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+          if (state.call_graph_fullscreen.value) {
+            state.call_graph_fullscreen.value = false;
+            nextTick(() => {
+              if (state.call_graph_data.value) {
+                call_graph_renderer.render_graph();
+              }
+            });
+          }
           if (state.inline_graph_fullscreen.value) {
             state.inline_graph_fullscreen.value = false;
             nextTick(() => {
@@ -260,6 +280,7 @@ createApp({
 
     return {
       // State (using camelCase for Vue template compatibility)
+      globalStats: state.global_stats,
       projects: state.projects,
       loadingProjects: state.loading_projects,
       selectedProject: state.selected_project,
@@ -310,6 +331,15 @@ createApp({
       searchSuggestions: state.search_suggestions,
       showAutocomplete: state.show_autocomplete,
       autocompleteIndex: state.autocomplete_index,
+      // Global search state
+      globalSearchQuery: state.global_search_query,
+      globalSearchSuggestions: state.global_search_suggestions,
+      showGlobalAutocomplete: state.show_global_autocomplete,
+      globalAutocompleteIndex: state.global_autocomplete_index,
+      showGlobalSearchResults: state.show_global_search_results,
+      globalSearchResults: state.global_search_results,
+      globalSearchLoading: state.global_search_loading,
+      globalSearchHasMore: state.global_search_has_more,
       entityReferences: state.entity_references,
       referenceDefinitions: state.reference_definitions,
       loadingReferences: state.loading_references,
@@ -320,6 +350,9 @@ createApp({
       importError: state.import_error,
       importSuccess: state.import_success,
       refreshingProject: state.refreshing_project,
+      showDeleteModal: state.show_delete_modal,
+      deleteProjectName: state.delete_project_name,
+      deletingProject: state.deleting_project,
       jobs: state.jobs,
       jobQueueStats: state.job_queue_stats,
       jobQueueMinimized: state.job_queue_minimized,
@@ -333,6 +366,7 @@ createApp({
       loadingAnalysisDetail: state.loading_analysis_detail,
       inlineGraphFullscreen: state.inline_graph_fullscreen,
       flowchartFullscreen: state.flowchart_fullscreen,
+      callGraphFullscreen: state.call_graph_fullscreen,
       currentDirectory: state.current_directory,
       serverReadOnly: state.server_read_only,
       showReadOnlyModal: state.show_read_only_modal,
@@ -380,6 +414,8 @@ createApp({
       toggleInlineGraphFullscreen:
         inline_graph_handlers.toggle_inline_graph_fullscreen,
       toggleFlowchartFullscreen: flowchart_handlers.toggle_flowchart_fullscreen,
+      toggleCallGraphFullscreen:
+        call_graph_handlers.toggle_call_graph_fullscreen,
       viewFunctionDetails: view_function_details,
       onSearchInput: search_handlers.on_search_input,
       navigateAutocomplete: search_handlers.navigate_autocomplete,
@@ -387,6 +423,22 @@ createApp({
       selectSuggestion: search_handlers.select_suggestion,
       closeAutocomplete: search_handlers.close_autocomplete,
       onSearchBlur: search_handlers.on_search_blur,
+      // Global search handlers
+      onGlobalSearchInput: global_search_handlers.on_global_search_input,
+      navigateGlobalAutocomplete:
+        global_search_handlers.navigate_global_autocomplete,
+      selectGlobalAutocompleteItem:
+        global_search_handlers.select_global_autocomplete_item,
+      executeGlobalSearch: global_search_handlers.execute_global_search,
+      loadMoreGlobalResults: global_search_handlers.load_more_global_results,
+      selectGlobalSuggestion: (fn) => {
+        global_search_handlers.select_global_suggestion(fn);
+        function_handlers.select_function(fn);
+      },
+      closeGlobalAutocomplete: global_search_handlers.close_global_autocomplete,
+      onGlobalSearchBlur: global_search_handlers.on_global_search_blur,
+      closeGlobalSearchResults:
+        global_search_handlers.close_global_search_results,
       resetToHome: navigation.reset_to_home,
       showMoreFiles: show_more_files,
       showAllFiles: show_all_files,
@@ -423,6 +475,11 @@ createApp({
           state.project_info.value = await api.load_project_info(project_name);
         }),
 
+      // Delete project
+      showDeleteConfirmation: import_handlers.show_delete_confirmation,
+      closeDeleteModal: import_handlers.close_delete_modal,
+      confirmDeleteProject: import_handlers.confirm_delete_project,
+
       // Analysis
       toggleAnalysisView: analysis_handlers.toggle_analysis_view,
       closeAnalysisView: analysis_handlers.close_analysis_view,
@@ -436,6 +493,7 @@ createApp({
       formatNumber: formatters.format_number,
       formatDuration: formatters.format_duration,
       formatReferenceType: formatters.format_reference_type,
+      formatJobTitle: formatters.format_job_title,
       getDistributionPercent: formatters.get_distribution_percent
     };
   }

@@ -58,6 +58,13 @@ export const create_navigation = (state, handlers) => {
     if (state.show_jobs_view.value) {
       params.set('view', 'jobs');
     }
+    if (
+      state.show_global_search_results.value &&
+      state.global_search_query.value
+    ) {
+      params.set('view', 'search');
+      params.set('q', state.global_search_query.value);
+    }
 
     const hash = params.toString();
     const new_url = hash ? `#${hash}` : window.location.pathname;
@@ -88,6 +95,22 @@ export const create_navigation = (state, handlers) => {
     if (view === 'jobs') {
       state.show_jobs_view.value = true;
       state.show_analysis_view.value = false;
+      return;
+    }
+
+    // Handle global search view (doesn't require project)
+    if (view === 'search') {
+      const search_query = params.get('q');
+      if (search_query) {
+        state.global_search_query.value = search_query;
+        state.show_global_search_results.value = true;
+        state.show_jobs_view.value = false;
+        state.show_analysis_view.value = false;
+        // Trigger the search
+        if (handlers.execute_global_search) {
+          await handlers.execute_global_search();
+        }
+      }
       return;
     }
 
@@ -191,6 +214,10 @@ export const create_navigation = (state, handlers) => {
     state.analysis_data.value = null;
     state.analysis_detail.value = null;
     state.analysis_tab.value = 'overview';
+    // Clear global search state
+    state.show_global_search_results.value = false;
+    state.global_search_results.value = [];
+    state.global_search_query.value = '';
 
     if (handlers.stop_simulation) {
       handlers.stop_simulation();

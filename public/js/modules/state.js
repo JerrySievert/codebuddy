@@ -9,6 +9,14 @@
  * @returns {Object} All state refs
  */
 export const create_state = (ref) => {
+  // Global stats state
+  const global_stats = ref({
+    projects: 0,
+    entities: 0,
+    files: 0,
+    languages: []
+  });
+
   // Project state
   const projects = ref([]);
   const loading_projects = ref(true);
@@ -83,11 +91,24 @@ export const create_state = (ref) => {
   const inline_call_graph_depth = ref(5);
   const inline_graph_fullscreen = ref(false);
   const flowchart_fullscreen = ref(false);
+  const call_graph_fullscreen = ref(false);
 
   // Autocomplete search state
   const search_suggestions = ref([]);
   const show_autocomplete = ref(false);
   const autocomplete_index = ref(-1);
+
+  // Global search state (header search across all projects)
+  const global_search_query = ref('');
+  const global_search_suggestions = ref([]);
+  const show_global_autocomplete = ref(false);
+  const global_autocomplete_index = ref(-1);
+  const show_global_search_results = ref(false);
+  const global_search_results = ref([]);
+  const global_search_loading = ref(false);
+  const global_search_page = ref(1);
+  const global_search_has_more = ref(false);
+  const GLOBAL_SEARCH_PAGE_SIZE = 50;
 
   // Import/Refresh state
   const show_import_modal = ref(false);
@@ -97,6 +118,11 @@ export const create_state = (ref) => {
   const import_error = ref('');
   const import_success = ref('');
   const refreshing_project = ref(null);
+
+  // Delete project state
+  const show_delete_modal = ref(false);
+  const delete_project_name = ref(null);
+  const deleting_project = ref(false);
 
   // Job queue state
   const jobs = ref([]);
@@ -135,6 +161,9 @@ export const create_state = (ref) => {
   const show_read_only_modal = ref(false);
 
   return {
+    // Global stats state
+    global_stats,
+
     // Project state
     projects,
     loading_projects,
@@ -209,11 +238,24 @@ export const create_state = (ref) => {
     inline_call_graph_depth,
     inline_graph_fullscreen,
     flowchart_fullscreen,
+    call_graph_fullscreen,
 
     // Autocomplete search state
     search_suggestions,
     show_autocomplete,
     autocomplete_index,
+
+    // Global search state
+    global_search_query,
+    global_search_suggestions,
+    show_global_autocomplete,
+    global_autocomplete_index,
+    show_global_search_results,
+    global_search_results,
+    global_search_loading,
+    global_search_page,
+    global_search_has_more,
+    GLOBAL_SEARCH_PAGE_SIZE,
 
     // Import/Refresh state
     show_import_modal,
@@ -223,6 +265,11 @@ export const create_state = (ref) => {
     import_error,
     import_success,
     refreshing_project,
+
+    // Delete project state
+    show_delete_modal,
+    delete_project_name,
+    deleting_project,
 
     // Job queue state
     jobs,

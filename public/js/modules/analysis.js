@@ -387,6 +387,28 @@ export const create_formatters = () => {
   };
 
   /**
+   * Format job title for user-friendly display.
+   * @param {Object} job - Job object with type and metadata
+   * @returns {string} Formatted job title
+   */
+  const format_job_title = (job) => {
+    if (!job) return 'Unknown Job';
+    const name = job.metadata?.name || '';
+    switch (job.type) {
+      case 'import':
+        return name ? `Importing ${name}` : 'Importing project';
+      case 'refresh':
+        return name ? `Refreshing ${name}` : 'Refreshing project';
+      case 'delete':
+        return name ? `Deleting ${name}` : 'Deleting project';
+      case 'analyze':
+        return name ? `Analyzing ${name}` : 'Analyzing project';
+      default:
+        return name || job.metadata?.path || job.id || 'Unknown Job';
+    }
+  };
+
+  /**
    * Calculate percentage for complexity distribution bar.
    * @param {Object} complexity - Complexity data object
    * @param {string} level - Complexity level
@@ -411,6 +433,7 @@ export const create_formatters = () => {
     format_number,
     format_duration,
     format_reference_type,
+    format_job_title,
     get_distribution_percent
   };
 };
