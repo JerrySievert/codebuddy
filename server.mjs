@@ -8,13 +8,17 @@ import { fileURLToPath } from 'url';
 import { routes } from './lib/api/v1/index.mjs';
 import { mcp_routes } from './lib/mcp-http.mjs';
 import { set_web_socket_server } from './lib/jobs.mjs';
-import { is_read_only } from './lib/config.mjs';
+import { is_read_only, is_mcp_disabled } from './lib/config.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = Path.dirname(__filename);
 
 if (is_read_only()) {
   console.log('Starting server in read-only mode');
+}
+
+if (is_mcp_disabled()) {
+  console.log('Starting server with MCP disabled');
 }
 
 const server = Hapi.server({
