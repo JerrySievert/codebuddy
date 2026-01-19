@@ -497,6 +497,31 @@ header h1 {
   word-break: break-word;
 }
 
+.code-block-wrapper {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.code-block-wrapper pre {
+  margin: 0;
+  padding: 0;
+}
+
+.code-block-wrapper code {
+  display: block;
+  padding: 16px;
+  overflow-x: auto;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 4;
+}
+
+/* Override highlight.js background to ensure consistency */
+.code-block-wrapper code.hljs {
+  padding: 16px;
+}
+
 .comment-block {
   background: #fff8e1;
   padding: 12px;

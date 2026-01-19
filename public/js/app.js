@@ -37,7 +37,7 @@ import {
   create_callers_callees_handlers
 } from './modules/function-handlers.js';
 
-const { createApp, ref, onMounted, watch, nextTick } = Vue;
+const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
 createApp({
   setup() {
@@ -161,6 +161,62 @@ createApp({
       api,
       navigation.update_url
     );
+
+    // ========================================
+    // Syntax highlighting helpers
+    // ========================================
+
+    /**
+     * Map language names to highlight.js language identifiers.
+     * @param {string} language - Source language name
+     * @returns {string} Highlight.js language identifier
+     */
+    const get_highlight_language = (language) => {
+      const language_map = {
+        javascript: 'javascript',
+        typescript: 'typescript',
+        python: 'python',
+        java: 'java',
+        c: 'c',
+        cpp: 'cpp',
+        'c++': 'cpp',
+        csharp: 'csharp',
+        'c#': 'csharp',
+        go: 'go',
+        rust: 'rust',
+        ruby: 'ruby',
+        php: 'php',
+        swift: 'swift',
+        zig: 'zig'
+      };
+      return language_map[language?.toLowerCase()] || 'plaintext';
+    };
+
+    /**
+     * Computed property for syntax-highlighted source code.
+     */
+    const highlighted_source = computed(() => {
+      const source = state.selected_function.value?.source;
+      if (!source) return '';
+
+      const language = state.selected_function.value?.language;
+      const hljs_lang = get_highlight_language(language);
+
+      try {
+        if (window.hljs && hljs_lang !== 'plaintext') {
+          const result = window.hljs.highlight(source, { language: hljs_lang });
+          return result.value;
+        }
+      } catch (e) {
+        console.warn('Syntax highlighting failed:', e);
+      }
+
+      // Fallback: escape HTML and return plain text
+      return source
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    });
 
     // ========================================
     // View function details from graph node
@@ -381,6 +437,10 @@ createApp({
       directoryContents: dir_computed.directory_contents,
       directoryBreadcrumbs: dir_computed.directory_breadcrumbs,
       groupedReferences: dir_computed.grouped_references,
+      highlightedSource: highlighted_source,
+
+      // Syntax highlighting helpers
+      getHighlightLanguage: get_highlight_language,
 
       // Methods - using camelCase for Vue template compatibility
       selectProject: data_handlers.select_project,
