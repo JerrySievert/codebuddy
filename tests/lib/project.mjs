@@ -1,6 +1,9 @@
 'use strict';
 
-import { prepare_entities_for_nodes } from '../../lib/project.mjs';
+import {
+  prepare_entities_for_nodes,
+  get_import_thresholds
+} from '../../lib/project.mjs';
 import { test } from 'st';
 
 // ============ prepare_entities_for_nodes tests ============
@@ -297,4 +300,106 @@ await test('prepare_entities_for_nodes handles JavaScript method definitions', a
 
   t.assert.eq(entities.length, 1, 'Should create one entity');
   t.assert.eq(entities[0].symbol, 'myMethod', 'Should extract method name');
+});
+
+// ============ get_import_thresholds tests ============
+
+await test('get_import_thresholds returns correct thresholds for small repos', async (t) => {
+  const thresholds = get_import_thresholds(100);
+
+  t.assert.eq(
+    thresholds.LARGE_REPO_THRESHOLD,
+    300,
+    'Large repo threshold should be 300'
+  );
+  t.assert.eq(
+    thresholds.INDEX_DROP_THRESHOLD,
+    5000,
+    'Index drop threshold should be 5000'
+  );
+  t.assert.eq(
+    thresholds.use_memory_saving_mode,
+    false,
+    'Should not use memory saving mode for 100 files'
+  );
+  t.assert.eq(
+    thresholds.should_drop_indexes,
+    false,
+    'Should not drop indexes for 100 files'
+  );
+});
+
+await test('get_import_thresholds enables memory saving mode for medium repos', async (t) => {
+  const thresholds = get_import_thresholds(500);
+
+  t.assert.eq(
+    thresholds.use_memory_saving_mode,
+    true,
+    'Should use memory saving mode for 500 files'
+  );
+  t.assert.eq(
+    thresholds.should_drop_indexes,
+    false,
+    'Should not drop indexes for 500 files'
+  );
+});
+
+await test('get_import_thresholds enables memory saving but not index drop for 1000 files', async (t) => {
+  const thresholds = get_import_thresholds(1000);
+
+  t.assert.eq(
+    thresholds.use_memory_saving_mode,
+    true,
+    'Should use memory saving mode for 1000 files'
+  );
+  t.assert.eq(
+    thresholds.should_drop_indexes,
+    false,
+    'Should not drop indexes for 1000 files'
+  );
+});
+
+await test('get_import_thresholds enables memory saving but not index drop for 4999 files', async (t) => {
+  const thresholds = get_import_thresholds(4999);
+
+  t.assert.eq(
+    thresholds.use_memory_saving_mode,
+    true,
+    'Should use memory saving mode for 4999 files'
+  );
+  t.assert.eq(
+    thresholds.should_drop_indexes,
+    false,
+    'Should not drop indexes for 4999 files'
+  );
+});
+
+await test('get_import_thresholds drops indexes only for very large repos (>5000 files)', async (t) => {
+  const thresholds = get_import_thresholds(5001);
+
+  t.assert.eq(
+    thresholds.use_memory_saving_mode,
+    true,
+    'Should use memory saving mode for 5001 files'
+  );
+  t.assert.eq(
+    thresholds.should_drop_indexes,
+    true,
+    'Should drop indexes for 5001 files'
+  );
+});
+
+await test('get_import_thresholds drops indexes for 10000 files', async (t) => {
+  const thresholds = get_import_thresholds(10000);
+
+  t.assert.eq(
+    thresholds.use_memory_saving_mode,
+    true,
+    'Should use memory saving mode for 10000 files'
+  );
+  t.assert.eq(
+    thresholds.should_drop_indexes,
+    true,
+    'Should drop indexes for 10000 files'
+  );
 });

@@ -17,7 +17,11 @@ import {
   get_code_metrics,
   detect_code_smells,
   analyze_documentation,
-  get_analysis_dashboard
+  get_analysis_dashboard,
+  extract_tokens,
+  calculate_similarity_from_tokens,
+  could_meet_threshold,
+  generate_bucket_key
 } from '../../../lib/analysis/index.mjs';
 
 // Counter to ensure unique project names
@@ -442,6 +446,221 @@ await test('get_analysis_dashboard health_rating is valid', async (t) => {
     t.assert.ok(
       valid_ratings.includes(result.health_rating),
       'health_rating should be Excellent/Good/Fair/Poor'
+    );
+  } finally {
+    await cleanup_test_fixtures(project_id);
+  }
+});
+
+// ============ Duplication helper function tests ============
+
+await test('extract_tokens extracts significant tokens from source', async (t) => {
+  const source = 'function calculate sum total result';
+  const tokens = extract_tokens(source);
+
+  t.assert.ok(tokens instanceof Set, 'Should return a Set');
+  t.assert.ok(tokens.has('function'), 'Should include "function"');
+  t.assert.ok(tokens.has('calculate'), 'Should include "calculate"');
+  t.assert.ok(tokens.has('sum'), 'Should include "sum"');
+  t.assert.ok(tokens.has('total'), 'Should include "total"');
+  t.assert.ok(tokens.has('result'), 'Should include "result"');
+});
+
+await test('extract_tokens filters out short tokens', async (t) => {
+  const source = 'a ab abc function if for';
+  const tokens = extract_tokens(source);
+
+  t.assert.ok(!tokens.has('a'), 'Should exclude single char "a"');
+  t.assert.ok(!tokens.has('ab'), 'Should exclude two char "ab"');
+  t.assert.ok(tokens.has('abc'), 'Should include three char "abc"');
+  t.assert.ok(tokens.has('function'), 'Should include "function"');
+  t.assert.ok(!tokens.has('if'), 'Should exclude two char "if"');
+  t.assert.ok(tokens.has('for'), 'Should include three char "for"');
+});
+
+await test('extract_tokens handles empty input', async (t) => {
+  const tokens_empty = extract_tokens('');
+  const tokens_null = extract_tokens(null);
+  const tokens_undefined = extract_tokens(undefined);
+
+  t.assert.eq(tokens_empty.size, 0, 'Empty string should give empty set');
+  t.assert.eq(tokens_null.size, 0, 'Null should give empty set');
+  t.assert.eq(tokens_undefined.size, 0, 'Undefined should give empty set');
+});
+
+await test('calculate_similarity_from_tokens returns 1 for identical sets', async (t) => {
+  const tokens_a = new Set(['function', 'calculate', 'result']);
+  const tokens_b = new Set(['function', 'calculate', 'result']);
+
+  const similarity = calculate_similarity_from_tokens(tokens_a, tokens_b);
+  t.assert.eq(similarity, 1, 'Identical sets should have similarity of 1');
+});
+
+await test('calculate_similarity_from_tokens returns 0 for disjoint sets', async (t) => {
+  const tokens_a = new Set(['function', 'calculate', 'result']);
+  const tokens_b = new Set(['class', 'method', 'object']);
+
+  const similarity = calculate_similarity_from_tokens(tokens_a, tokens_b);
+  t.assert.eq(similarity, 0, 'Disjoint sets should have similarity of 0');
+});
+
+await test('calculate_similarity_from_tokens calculates correct Jaccard', async (t) => {
+  // Jaccard = |intersection| / |union|
+  // A = {a, b, c}, B = {b, c, d}
+  // intersection = {b, c} = 2
+  // union = {a, b, c, d} = 4
+  // Jaccard = 2/4 = 0.5
+  const tokens_a = new Set(['aaa', 'bbb', 'ccc']);
+  const tokens_b = new Set(['bbb', 'ccc', 'ddd']);
+
+  const similarity = calculate_similarity_from_tokens(tokens_a, tokens_b);
+  t.assert.eq(similarity, 0.5, 'Jaccard similarity should be 0.5');
+});
+
+await test('calculate_similarity_from_tokens handles empty sets', async (t) => {
+  const empty = new Set();
+  const non_empty = new Set(['function', 'calculate']);
+
+  t.assert.eq(
+    calculate_similarity_from_tokens(empty, empty),
+    1,
+    'Two empty sets should have similarity 1'
+  );
+  t.assert.eq(
+    calculate_similarity_from_tokens(empty, non_empty),
+    0,
+    'Empty vs non-empty should have similarity 0'
+  );
+  t.assert.eq(
+    calculate_similarity_from_tokens(non_empty, empty),
+    0,
+    'Non-empty vs empty should have similarity 0'
+  );
+});
+
+await test('could_meet_threshold returns true when threshold is achievable', async (t) => {
+  // If A has 10 tokens and B has 10 tokens, max similarity is 1.0
+  t.assert.ok(
+    could_meet_threshold(10, 10, 0.7),
+    'Equal sizes can meet 0.7 threshold'
+  );
+
+  // If A has 8 tokens and B has 10 tokens, max similarity is 8/10 = 0.8
+  t.assert.ok(
+    could_meet_threshold(8, 10, 0.7),
+    'Size 8 vs 10 can meet 0.7 threshold'
+  );
+
+  // If A has 7 tokens and B has 10 tokens, max similarity is 7/10 = 0.7
+  t.assert.ok(
+    could_meet_threshold(7, 10, 0.7),
+    'Size 7 vs 10 can meet 0.7 threshold exactly'
+  );
+});
+
+await test('could_meet_threshold returns false when threshold is impossible', async (t) => {
+  // If A has 5 tokens and B has 10 tokens, max similarity is 5/10 = 0.5
+  t.assert.ok(
+    !could_meet_threshold(5, 10, 0.7),
+    'Size 5 vs 10 cannot meet 0.7 threshold'
+  );
+
+  // If A has 3 tokens and B has 10 tokens, max similarity is 3/10 = 0.3
+  t.assert.ok(
+    !could_meet_threshold(3, 10, 0.7),
+    'Size 3 vs 10 cannot meet 0.7 threshold'
+  );
+
+  // Empty set can never meet threshold
+  t.assert.ok(
+    !could_meet_threshold(0, 10, 0.7),
+    'Empty set cannot meet any positive threshold'
+  );
+});
+
+await test('generate_bucket_key groups similar-sized functions together', async (t) => {
+  // Functions with similar token counts and line counts should get same bucket
+  const tokens_10 = new Set(Array.from({ length: 10 }, (_, i) => `token${i}`));
+  const tokens_12 = new Set(Array.from({ length: 12 }, (_, i) => `token${i}`));
+  const tokens_50 = new Set(Array.from({ length: 50 }, (_, i) => `token${i}`));
+
+  const key_10_15 = generate_bucket_key(tokens_10, 15);
+  const key_12_18 = generate_bucket_key(tokens_12, 18);
+  const key_50_100 = generate_bucket_key(tokens_50, 100);
+
+  // 10 tokens rounds to 10, 15 lines rounds to 10
+  // 12 tokens rounds to 10, 18 lines rounds to 10
+  t.assert.eq(key_10_15, key_12_18, 'Similar sizes should get same bucket');
+
+  // 50 tokens and 100 lines should be in a different bucket
+  t.assert.ok(
+    key_10_15 !== key_50_100,
+    'Different sizes should get different buckets'
+  );
+});
+
+await test('detect_code_duplication finds duplicates with optimized algorithm', async (t) => {
+  let project_id;
+  try {
+    const fixtures = await setup_test_fixtures();
+    project_id = fixtures.project_id;
+
+    // Run duplication detection
+    const result = await detect_code_duplication(project_id, 0.7);
+
+    t.assert.ok(
+      result.duplicate_groups !== undefined,
+      'Should have duplicate_groups'
+    );
+    t.assert.ok(result.summary !== undefined, 'Should have summary');
+
+    // The calculate and duplicate_logic functions are nearly identical
+    // They should be detected as duplicates
+    const found_duplicate = result.duplicate_groups.some((group) => {
+      const symbols = [
+        group.original.symbol,
+        ...group.clones.map((c) => c.symbol)
+      ];
+      return (
+        symbols.includes('calculate') && symbols.includes('duplicate_logic')
+      );
+    });
+
+    t.assert.ok(
+      found_duplicate,
+      'Should detect calculate and duplicate_logic as duplicates'
+    );
+  } finally {
+    await cleanup_test_fixtures(project_id);
+  }
+});
+
+await test('detect_code_duplication handles empty projects', async (t) => {
+  const test_id = ++test_counter;
+  const project_name = `_test_analysis_empty_${test_id}_${Date.now()}`;
+
+  const project_result = await insert_or_update_project({
+    name: project_name,
+    path: `/tmp/test_empty_${test_id}`
+  });
+  const project_id = project_result[0].id;
+
+  try {
+    const result = await detect_code_duplication(project_id, 0.7);
+
+    t.assert.ok(
+      Array.isArray(result.duplicate_groups),
+      'Should have duplicate_groups array'
+    );
+    t.assert.eq(
+      result.duplicate_groups.length,
+      0,
+      'Empty project should have no duplicates'
+    );
+    t.assert.eq(
+      result.summary.duplicate_group_count,
+      0,
+      'Should have 0 duplicate groups'
     );
   } finally {
     await cleanup_test_fixtures(project_id);

@@ -61,6 +61,10 @@ header .nav-item.active {
   background: rgba(255, 255, 255, 0.25);
 }
 
+header .nav-item.nav-link {
+  text-decoration: none;
+}
+
 header .nav-badge {
   background: #4caf50;
   color: white;
@@ -148,6 +152,7 @@ header h1 {
   width: 120px;
   height: 120px;
   margin-bottom: 20px;
+  border-radius: 10px;
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
 }
 
@@ -2697,6 +2702,7 @@ header h1 {
   padding: 16px;
   margin-bottom: 16px;
   border-radius: 0 8px 8px 0;
+  overflow: hidden;
 }
 
 .duplication-original,
@@ -2710,6 +2716,7 @@ header h1 {
   margin-bottom: 8px;
   cursor: pointer;
   transition: background 0.15s;
+  overflow: hidden;
 }
 
 .duplication-original:hover,
@@ -2728,6 +2735,7 @@ header h1 {
   color: #666;
   font-weight: 500;
   min-width: 120px;
+  flex-shrink: 0;
 }
 
 .duplication-original .fn-name,
@@ -2735,18 +2743,25 @@ header h1 {
   font-family: monospace;
   color: #1976d2;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
 .duplication-original .fn-file,
 .duplication-clone .fn-file {
   color: #666;
   font-size: 0.85em;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fn-lines {
   color: #888;
   font-size: 0.85em;
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* Analysis Empty State */
