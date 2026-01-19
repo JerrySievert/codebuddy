@@ -3,6 +3,16 @@
  * Contains functions for job polling, WebSocket subscriptions, and job status tracking.
  */
 
+// ============================================================================
+// WebSocket Configuration
+// ============================================================================
+
+const WS_RECONNECT_DELAY = 2000;
+
+// ============================================================================
+// Job Queue Manager
+// ============================================================================
+
 /**
  * Creates job queue manager.
  * @param {Object} state - Application state
@@ -12,7 +22,6 @@
 export const create_job_manager = (state, api) => {
   let job_poll_interval = null;
   let nes_client = null;
-  const ws_reconnect_delay = 2000;
   const job_subscriptions = new Map();
 
   /**
@@ -59,6 +68,32 @@ export const create_job_manager = (state, api) => {
   };
 
   /**
+   * Handle job update from WebSocket.
+   * @param {Object} job - Job data
+   */
+  const handle_job_update = (job) => {
+    // Update jobs list
+    const index = state.jobs.value.findIndex((j) => j.id === job.id);
+    if (index >= 0) {
+      state.jobs.value[index] = job;
+    } else {
+      state.jobs.value.unshift(job);
+    }
+
+    // Check for completion callbacks
+    const callbacks = job_subscriptions.get(job.id);
+    if (callbacks) {
+      if (job.status === 'completed') {
+        callbacks.on_complete(job);
+        unsubscribe_from_job(job.id);
+      } else if (job.status === 'failed') {
+        callbacks.on_error(job.error || 'Job failed');
+        unsubscribe_from_job(job.id);
+      }
+    }
+  };
+
+  /**
    * Initialize WebSocket connection for real-time job updates.
    */
   const init_web_socket = async () => {
@@ -89,7 +124,7 @@ export const create_job_manager = (state, api) => {
         stop_job_polling();
       };
 
-      await nes_client.connect({ reconnect: true, delay: ws_reconnect_delay });
+      await nes_client.connect({ reconnect: true, delay: WS_RECONNECT_DELAY });
 
       // Subscribe to queue stats for real-time updates
       await nes_client.subscribe('/jobs/stats', (update) => {
@@ -98,35 +133,12 @@ export const create_job_manager = (state, api) => {
 
       console.log('[WS] WebSocket initialized and subscribed to stats');
     } catch (error) {
-      console.warn('[WS] WebSocket connection failed, using polling fallback:', error.message);
+      console.warn(
+        '[WS] WebSocket connection failed, using polling fallback:',
+        error.message
+      );
       nes_client = null;
       state.ws_connected.value = false;
-    }
-  };
-
-  /**
-   * Handle job update from WebSocket.
-   * @param {Object} job - Job data
-   */
-  const handle_job_update = (job) => {
-    // Update jobs list
-    const index = state.jobs.value.findIndex((j) => j.id === job.id);
-    if (index >= 0) {
-      state.jobs.value[index] = job;
-    } else {
-      state.jobs.value.unshift(job);
-    }
-
-    // Check for completion callbacks
-    const callbacks = job_subscriptions.get(job.id);
-    if (callbacks) {
-      if (job.status === 'completed') {
-        callbacks.on_complete(job);
-        unsubscribe_from_job(job.id);
-      } else if (job.status === 'failed') {
-        callbacks.on_error(job.error || 'Job failed');
-        unsubscribe_from_job(job.id);
-      }
     }
   };
 
@@ -150,7 +162,10 @@ export const create_job_manager = (state, api) => {
         console.log(`[WS] Subscribed to job ${job_id}`);
         return true;
       } catch (error) {
-        console.warn(`[WS] Failed to subscribe to job ${job_id}:`, error.message);
+        console.warn(
+          `[WS] Failed to subscribe to job ${job_id}:`,
+          error.message
+        );
       }
     }
 
@@ -214,6 +229,10 @@ export const create_job_manager = (state, api) => {
   };
 };
 
+// ============================================================================
+// Import Handlers
+// ============================================================================
+
 /**
  * Creates import/refresh handlers.
  * @param {Object} state - Application state
@@ -223,9 +242,15 @@ export const create_job_manager = (state, api) => {
  * @param {Function} update_url - URL updater
  * @returns {Object} Import/refresh functions
  */
-export const create_import_handlers = (state, api, job_manager, load_projects, update_url) => {
+export const create_import_handlers = (
+  state,
+  api,
+  job_manager,
+  load_projects,
+  update_url
+) => {
   /**
-   * Close import modal.
+   * Close import modal and reset state.
    */
   const close_import_modal = () => {
     state.show_import_modal.value = false;
@@ -233,6 +258,23 @@ export const create_import_handlers = (state, api, job_manager, load_projects, u
     state.import_name.value = '';
     state.import_error.value = '';
     state.import_success.value = '';
+  };
+
+  /**
+   * Handle successful import job subscription.
+   * @param {string} job_id - Job ID
+   */
+  const setup_import_job_subscription = (job_id) => {
+    job_manager.subscribe_to_job(
+      job_id,
+      async () => {
+        await load_projects();
+        await job_manager.load_job_queue();
+      },
+      async () => {
+        await job_manager.load_job_queue();
+      }
+    );
   };
 
   /**
@@ -262,7 +304,8 @@ export const create_import_handlers = (state, api, job_manager, load_projects, u
         return;
       }
 
-      state.import_success.value = result.message || 'Project queued for import!';
+      state.import_success.value =
+        result.message || 'Project queued for import!';
 
       // Start polling for job updates
       await job_manager.load_job_queue();
@@ -275,22 +318,48 @@ export const create_import_handlers = (state, api, job_manager, load_projects, u
 
       // Subscribe to job updates
       if (result.job_id) {
-        job_manager.subscribe_to_job(
-          result.job_id,
-          async () => {
-            await load_projects();
-            await job_manager.load_job_queue();
-          },
-          async () => {
-            await job_manager.load_job_queue();
-          }
-        );
+        setup_import_job_subscription(result.job_id);
       }
     } catch (error) {
       state.import_error.value = error.message || 'Failed to import project';
     } finally {
       state.importing.value = false;
     }
+  };
+
+  /**
+   * Setup refresh job subscription with callbacks.
+   * @param {string} job_id - Job ID
+   * @param {string} project_name - Project name
+   * @param {Function} reload_project_info - Function to reload project info
+   */
+  const setup_refresh_job_subscription = (
+    job_id,
+    project_name,
+    reload_project_info
+  ) => {
+    job_manager.subscribe_to_job(
+      job_id,
+      async () => {
+        // Job completed successfully
+        state.refreshing_project.value = null;
+
+        // Refresh projects list and job queue
+        await load_projects();
+        await job_manager.load_job_queue();
+
+        // If this project is selected, reload its info
+        if (state.selected_project.value?.name === project_name) {
+          await reload_project_info(project_name);
+        }
+      },
+      async (error) => {
+        // Job failed
+        state.refreshing_project.value = null;
+        await job_manager.load_job_queue();
+        alert(error || 'Failed to refresh project');
+      }
+    );
   };
 
   /**
@@ -320,27 +389,10 @@ export const create_import_handlers = (state, api, job_manager, load_projects, u
       await job_manager.load_job_queue();
 
       // Subscribe to job updates
-      job_manager.subscribe_to_job(
+      setup_refresh_job_subscription(
         result.job_id,
-        async () => {
-          // Job completed successfully
-          state.refreshing_project.value = null;
-
-          // Refresh projects list and job queue
-          await load_projects();
-          await job_manager.load_job_queue();
-
-          // If this project is selected, reload its info
-          if (state.selected_project.value?.name === project_name) {
-            await reload_project_info(project_name);
-          }
-        },
-        async (error) => {
-          // Job failed
-          state.refreshing_project.value = null;
-          await job_manager.load_job_queue();
-          alert(error || 'Failed to refresh project');
-        }
+        project_name,
+        reload_project_info
       );
     } catch (error) {
       alert(error.message || 'Failed to refresh project');

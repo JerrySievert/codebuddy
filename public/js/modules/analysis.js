@@ -3,6 +3,157 @@
  * Contains functions for loading and managing analysis data.
  */
 
+// ============================================================================
+// Analysis Count Sync Helpers
+// ============================================================================
+
+/**
+ * Sync security counts from detail data.
+ * @param {Object} summaries - Summary data object
+ * @param {Object} detail - Detail data object
+ */
+const sync_security_counts = (summaries, detail) => {
+  if (detail.summary) {
+    summaries.security.total_vulnerabilities =
+      detail.summary.total_vulnerabilities || 0;
+    summaries.security.high_severity = detail.summary.high_severity || 0;
+    summaries.security.medium_severity = detail.summary.medium_severity || 0;
+    summaries.security.low_severity = detail.summary.low_severity || 0;
+  }
+};
+
+/**
+ * Sync code smells counts from detail data.
+ * @param {Object} summaries - Summary data object
+ * @param {Object} detail - Detail data object
+ */
+const sync_code_smells_counts = (summaries, detail) => {
+  if (detail.summary) {
+    summaries.code_smells.total_smells = detail.summary.total_smells || 0;
+    summaries.code_smells.smell_density = detail.summary.smell_density || 0;
+    summaries.code_smells.god_functions = detail.summary.god_functions || 0;
+  }
+};
+
+/**
+ * Sync dead code counts from detail data.
+ * @param {Object} summaries - Summary data object
+ * @param {Object} detail - Detail data object
+ */
+const sync_dead_code_counts = (summaries, detail) => {
+  if (detail.summary) {
+    summaries.dead_code.dead_function_count =
+      detail.summary.dead_function_count || 0;
+    summaries.dead_code.dead_code_percentage =
+      detail.summary.dead_code_percentage || 0;
+    summaries.dead_code.dead_lines_of_code =
+      detail.summary.dead_lines_of_code || 0;
+  }
+};
+
+/**
+ * Sync types counts from detail data.
+ * @param {Object} summaries - Summary data object
+ * @param {Object} detail - Detail data object
+ */
+const sync_types_counts = (summaries, detail) => {
+  if (detail.summary) {
+    summaries.types.type_coverage_percentage =
+      detail.summary.type_coverage_percentage || 0;
+    summaries.types.total_dynamic_functions =
+      detail.summary.total_functions || 0;
+    summaries.types.with_type_hints = detail.summary.with_type_hints || 0;
+  }
+};
+
+/**
+ * Sync documentation counts from detail data.
+ * @param {Object} summaries - Summary data object
+ * @param {Object} detail - Detail data object
+ */
+const sync_documentation_counts = (summaries, detail) => {
+  if (detail.summary) {
+    summaries.documentation.coverage_percentage =
+      detail.summary.coverage_percentage || 0;
+    summaries.documentation.fully_documented =
+      detail.summary.fully_documented || 0;
+    summaries.documentation.undocumented = detail.summary.undocumented || 0;
+  }
+};
+
+/**
+ * Sync scope counts from detail data.
+ * @param {Object} summaries - Summary data object
+ * @param {Object} detail - Detail data object
+ */
+const sync_scope_counts = (summaries, detail) => {
+  if (detail.summary) {
+    summaries.scope.total_issues = detail.summary.total_issues || 0;
+    summaries.scope.global_variable_issues =
+      detail.summary.global_variable_issues || 0;
+    summaries.scope.shadowing_issues = detail.summary.shadowing_issues || 0;
+  }
+};
+
+/**
+ * Sync duplication counts from detail data.
+ * @param {Object} summaries - Summary data object
+ * @param {Object} detail - Detail data object
+ */
+const sync_duplication_counts = (summaries, detail) => {
+  if (detail.summary) {
+    summaries.duplication.duplicate_group_count =
+      detail.summary.duplicate_group_count || 0;
+    summaries.duplication.duplication_percentage =
+      detail.summary.duplication_percentage || 0;
+  }
+};
+
+/**
+ * Sync dependencies counts from detail data.
+ * @param {Object} summaries - Summary data object
+ * @param {Object} detail - Detail data object
+ */
+const sync_dependencies_counts = (summaries, detail) => {
+  if (detail.summary) {
+    summaries.dependencies.circular_dependency_count =
+      detail.summary.circular_dependency_count || 0;
+    summaries.dependencies.total_dependencies =
+      detail.summary.total_dependencies || 0;
+  }
+};
+
+/**
+ * Map of analysis types to their sync functions.
+ */
+const SYNC_HANDLERS = {
+  security: sync_security_counts,
+  'code-smells': sync_code_smells_counts,
+  'dead-code': sync_dead_code_counts,
+  types: sync_types_counts,
+  documentation: sync_documentation_counts,
+  scope: sync_scope_counts,
+  duplication: sync_duplication_counts,
+  dependencies: sync_dependencies_counts
+};
+
+/**
+ * Sync summary counts with actual detail data to fix mismatches.
+ * @param {Object} summaries - Summary data object
+ * @param {string} type - Analysis type
+ * @param {Object} detail - Detail data
+ */
+const sync_analysis_counts = (summaries, type, detail) => {
+  const handler = SYNC_HANDLERS[type];
+  if (handler) {
+    handler(summaries, detail);
+  }
+};
+
+// ============================================================================
+// Analysis Handlers Factory
+// ============================================================================
+
 /**
  * Creates analysis view handlers.
  * @param {Object} state - Application state
@@ -68,94 +219,6 @@ export const create_analysis_handlers = (state, api, update_url) => {
   };
 
   /**
-   * Sync summary counts with actual detail data to fix mismatches.
-   * @param {string} type - Analysis type
-   * @param {Object} detail - Detail data
-   */
-  const sync_analysis_counts = (type, detail) => {
-    if (!state.analysis_data.value?.summaries) return;
-
-    const summaries = state.analysis_data.value.summaries;
-
-    switch (type) {
-      case 'security':
-        if (detail.summary) {
-          summaries.security.total_vulnerabilities =
-            detail.summary.total_vulnerabilities || 0;
-          summaries.security.high_severity = detail.summary.high_severity || 0;
-          summaries.security.medium_severity =
-            detail.summary.medium_severity || 0;
-          summaries.security.low_severity = detail.summary.low_severity || 0;
-        }
-        break;
-      case 'code-smells':
-        if (detail.summary) {
-          summaries.code_smells.total_smells =
-            detail.summary.total_smells || 0;
-          summaries.code_smells.smell_density =
-            detail.summary.smell_density || 0;
-          summaries.code_smells.god_functions =
-            detail.summary.god_functions || 0;
-        }
-        break;
-      case 'dead-code':
-        if (detail.summary) {
-          summaries.dead_code.dead_function_count =
-            detail.summary.dead_function_count || 0;
-          summaries.dead_code.dead_code_percentage =
-            detail.summary.dead_code_percentage || 0;
-          summaries.dead_code.dead_lines_of_code =
-            detail.summary.dead_lines_of_code || 0;
-        }
-        break;
-      case 'types':
-        if (detail.summary) {
-          summaries.types.type_coverage_percentage =
-            detail.summary.type_coverage_percentage || 0;
-          summaries.types.total_dynamic_functions =
-            detail.summary.total_functions || 0;
-          summaries.types.with_type_hints = detail.summary.with_type_hints || 0;
-        }
-        break;
-      case 'documentation':
-        if (detail.summary) {
-          summaries.documentation.coverage_percentage =
-            detail.summary.coverage_percentage || 0;
-          summaries.documentation.fully_documented =
-            detail.summary.fully_documented || 0;
-          summaries.documentation.undocumented =
-            detail.summary.undocumented || 0;
-        }
-        break;
-      case 'scope':
-        if (detail.summary) {
-          summaries.scope.total_issues = detail.summary.total_issues || 0;
-          summaries.scope.global_variable_issues =
-            detail.summary.global_variable_issues || 0;
-          summaries.scope.shadowing_issues =
-            detail.summary.shadowing_issues || 0;
-        }
-        break;
-      case 'duplication':
-        if (detail.summary) {
-          summaries.duplication.duplicate_group_count =
-            detail.summary.duplicate_group_count || 0;
-          summaries.duplication.duplication_percentage =
-            detail.summary.duplication_percentage || 0;
-        }
-        break;
-      case 'dependencies':
-        if (detail.summary) {
-          summaries.dependencies.circular_dependency_count =
-            detail.summary.circular_dependency_count || 0;
-          summaries.dependencies.total_dependencies =
-            detail.summary.total_dependencies || 0;
-        }
-        break;
-    }
-  };
-
-  /**
    * Load analysis detail for a specific type.
    * @param {string} type - Analysis type (security, code-smells, etc.)
    * @param {boolean} skip_url_update - Skip URL update
@@ -183,8 +246,8 @@ export const create_analysis_handlers = (state, api, update_url) => {
       state.analysis_detail.value = detail;
 
       // Sync summary counts with actual detail data
-      if (state.analysis_data.value && detail) {
-        sync_analysis_counts(type, detail);
+      if (state.analysis_data.value?.summaries && detail) {
+        sync_analysis_counts(state.analysis_data.value.summaries, type, detail);
       }
     } catch (error) {
       console.error(`Failed to load ${type} analysis:`, error);
@@ -256,6 +319,10 @@ export const create_analysis_handlers = (state, api, update_url) => {
     navigate_to_function_by_id
   };
 };
+
+// ============================================================================
+// Formatters
+// ============================================================================
 
 /**
  * Creates utility functions for formatting.

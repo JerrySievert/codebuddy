@@ -3,6 +3,530 @@
  * Contains functions for rendering flowcharts, call graphs, and tree views.
  */
 
+import {
+  get_depth_color,
+  get_depth_fill,
+  filter_by_depth,
+  calculate_node_depths,
+  truncate_string
+} from './rendering-utils.js';
+
+// ============================================================================
+// Flowchart Layout Helpers
+// ============================================================================
+
+/**
+ * Compute topological levels for flowchart nodes.
+ * @param {Object[]} nodes - Array of nodes
+ * @param {Object[]} edges - Array of edges
+ * @returns {Map} Map of node ID to level
+ */
+const compute_flowchart_levels = (nodes, edges) => {
+  const adj_list = new Map();
+  const in_degree = new Map();
+
+  nodes.forEach((n) => {
+    adj_list.set(n.id, []);
+    in_degree.set(n.id, 0);
+  });
+
+  edges.forEach((e) => {
+    if (adj_list.has(e.from)) {
+      adj_list.get(e.from).push(e.to);
+    }
+    if (in_degree.has(e.to)) {
+      in_degree.set(e.to, in_degree.get(e.to) + 1);
+    }
+  });
+
+  const levels = new Map();
+  const queue = [];
+
+  nodes.forEach((n) => {
+    if (in_degree.get(n.id) === 0) {
+      queue.push(n.id);
+      levels.set(n.id, 0);
+    }
+  });
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const current_level = levels.get(current);
+
+    for (const neighbor of adj_list.get(current) || []) {
+      if (!levels.has(neighbor)) {
+        levels.set(neighbor, current_level + 1);
+      } else {
+        levels.set(neighbor, Math.max(levels.get(neighbor), current_level + 1));
+      }
+      in_degree.set(neighbor, in_degree.get(neighbor) - 1);
+      if (in_degree.get(neighbor) === 0) {
+        queue.push(neighbor);
+      }
+    }
+  }
+
+  // Handle nodes not reached (cycles)
+  nodes.forEach((n) => {
+    if (!levels.has(n.id)) {
+      levels.set(n.id, 0);
+    }
+  });
+
+  return levels;
+};
+
+/**
+ * Position flowchart nodes based on levels.
+ * @param {Object[]} nodes - Array of nodes
+ * @param {Map} levels - Map of node ID to level
+ * @param {number} width - Container width
+ * @param {Object} config - Layout configuration
+ * @returns {Map} Map of node ID to position {x, y}
+ */
+const position_flowchart_nodes = (nodes, levels, width, config) => {
+  const { node_width, node_height, level_gap, node_gap } = config;
+
+  // Group nodes by level
+  const level_groups = new Map();
+  nodes.forEach((n) => {
+    const level = levels.get(n.id);
+    if (!level_groups.has(level)) {
+      level_groups.set(level, []);
+    }
+    level_groups.get(level).push(n);
+  });
+
+  // Position nodes
+  const node_positions = new Map();
+
+  level_groups.forEach((level_nodes, level) => {
+    const total_width =
+      level_nodes.length * node_width + (level_nodes.length - 1) * node_gap;
+    const start_x = (width - total_width) / 2;
+
+    level_nodes.forEach((node, i) => {
+      node_positions.set(node.id, {
+        x: start_x + i * (node_width + node_gap) + node_width / 2,
+        y: 60 + level * (node_height + level_gap)
+      });
+    });
+  });
+
+  return node_positions;
+};
+
+/**
+ * Draw flowchart edges.
+ * @param {Object} link_group - D3 selection for links
+ * @param {Object[]} edges - Array of edges
+ * @param {Object[]} nodes - Array of nodes
+ * @param {Map} node_positions - Map of node positions
+ * @param {Object} config - Layout configuration
+ */
+const draw_flowchart_edges = (
+  link_group,
+  edges,
+  nodes,
+  node_positions,
+  config
+) => {
+  const { node_width, node_height } = config;
+
+  edges.forEach((edge) => {
+    const from_pos = node_positions.get(edge.from);
+    const to_pos = node_positions.get(edge.to);
+
+    if (!from_pos || !to_pos) return;
+
+    const from_node = nodes.find((n) => n.id === edge.from);
+
+    let start_y = from_pos.y + node_height / 2;
+    let end_y = to_pos.y - node_height / 2;
+
+    // Adjust for diamond shapes (decision nodes)
+    if (from_node && from_node.type === 'decision') {
+      start_y = from_pos.y + node_height / 2 + 5;
+    }
+
+    // Create path
+    const path = link_group
+      .append('path')
+      .attr('class', 'flowchart-edge')
+      .attr('marker-end', 'url(#flowchart-arrow)')
+      .attr('fill', 'none')
+      .attr('stroke', '#666')
+      .attr('stroke-width', 1.5);
+
+    // Different path for back edges (loops)
+    if (to_pos.y <= from_pos.y) {
+      const mid_x = Math.max(from_pos.x, to_pos.x) + node_width;
+      path.attr(
+        'd',
+        `M ${from_pos.x + node_width / 2} ${from_pos.y}
+         Q ${mid_x} ${from_pos.y}, ${mid_x} ${(from_pos.y + to_pos.y) / 2}
+         Q ${mid_x} ${to_pos.y}, ${to_pos.x + node_width / 2} ${to_pos.y}`
+      );
+    } else {
+      const dx = to_pos.x - from_pos.x;
+      if (Math.abs(dx) < 10) {
+        path.attr('d', `M ${from_pos.x} ${start_y} L ${to_pos.x} ${end_y}`);
+      } else {
+        const mid_y = (start_y + end_y) / 2;
+        path.attr(
+          'd',
+          `M ${from_pos.x} ${start_y}
+           Q ${from_pos.x} ${mid_y}, ${(from_pos.x + to_pos.x) / 2} ${mid_y}
+           Q ${to_pos.x} ${mid_y}, ${to_pos.x} ${end_y}`
+        );
+      }
+    }
+
+    // Add edge label
+    if (edge.label) {
+      const label_x = (from_pos.x + to_pos.x) / 2;
+      const label_y = (from_pos.y + to_pos.y) / 2;
+
+      link_group
+        .append('text')
+        .attr('class', 'flowchart-edge-label')
+        .attr('x', label_x + 10)
+        .attr('y', label_y)
+        .attr('text-anchor', 'start')
+        .attr('fill', '#666')
+        .attr('font-size', '11px')
+        .text(edge.label);
+    }
+  });
+};
+
+/**
+ * Draw a flowchart node shape based on type.
+ * @param {Object} g - D3 selection for node group
+ * @param {Object} node - Node data
+ * @param {Object} config - Layout configuration
+ */
+const draw_flowchart_node_shape = (g, node, config) => {
+  const { node_width, node_height } = config;
+
+  switch (node.type) {
+    case 'start':
+    case 'end':
+      g.append('rect')
+        .attr('x', -node_width / 2)
+        .attr('y', -node_height / 2)
+        .attr('width', node_width)
+        .attr('height', node_height)
+        .attr('rx', node_height / 2)
+        .attr('ry', node_height / 2)
+        .attr('class', 'flowchart-shape-oval');
+      break;
+
+    case 'decision':
+      const diamond_size = node_height * 0.8;
+      g.append('polygon')
+        .attr(
+          'points',
+          `0,${-diamond_size} ${diamond_size},0 0,${diamond_size} ${-diamond_size},0`
+        )
+        .attr('class', 'flowchart-shape-diamond');
+      break;
+
+    case 'loop':
+      const hw = node_width / 2;
+      const hh = node_height / 2;
+      const indent = 15;
+      g.append('polygon')
+        .attr(
+          'points',
+          `${-hw + indent},${-hh} ${hw - indent},${-hh} ${hw},0 ${hw - indent},${hh} ${-hw + indent},${hh} ${-hw},0`
+        )
+        .attr('class', 'flowchart-shape-hexagon');
+      break;
+
+    case 'return':
+      g.append('rect')
+        .attr('x', -node_width / 2)
+        .attr('y', -node_height / 2)
+        .attr('width', node_width)
+        .attr('height', node_height)
+        .attr('rx', 8)
+        .attr('ry', 8)
+        .attr('class', 'flowchart-shape-return');
+      break;
+
+    case 'process':
+    default:
+      g.append('rect')
+        .attr('x', -node_width / 2)
+        .attr('y', -node_height / 2)
+        .attr('width', node_width)
+        .attr('height', node_height)
+        .attr('class', 'flowchart-shape-rect');
+      break;
+  }
+};
+
+/**
+ * Draw flowchart nodes.
+ * @param {Object} node_group - D3 selection for nodes
+ * @param {Object[]} nodes - Array of nodes
+ * @param {Map} node_positions - Map of node positions
+ * @param {Object} config - Layout configuration
+ * @param {Function} on_click - Click handler
+ */
+const draw_flowchart_nodes = (
+  node_group,
+  nodes,
+  node_positions,
+  config,
+  on_click
+) => {
+  const { node_height } = config;
+  const max_label_length = 18;
+
+  nodes.forEach((node) => {
+    const pos = node_positions.get(node.id);
+    if (!pos) return;
+
+    const g = node_group
+      .append('g')
+      .attr('class', `flowchart-node flowchart-node-${node.type}`)
+      .attr('transform', `translate(${pos.x}, ${pos.y})`)
+      .style('cursor', node.source_snippet ? 'pointer' : 'default')
+      .on('click', (event) => {
+        event.stopPropagation();
+        if (node.source_snippet || node.full_label) {
+          on_click(node);
+        }
+      });
+
+    draw_flowchart_node_shape(g, node, config);
+
+    // Add label
+    const label = node.label || node.type;
+    const display_label = truncate_string(label, max_label_length);
+
+    g.append('text')
+      .attr('class', 'flowchart-label')
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'middle')
+      .attr('y', 0)
+      .text(display_label)
+      .append('title')
+      .text(node.full_label || label);
+
+    // Add line number if available
+    if (node.line) {
+      g.append('text')
+        .attr('class', 'flowchart-line-number')
+        .attr('text-anchor', 'middle')
+        .attr('y', node_height / 2 + 12)
+        .attr('font-size', '10px')
+        .attr('fill', '#999')
+        .text(`Line ${node.line}`);
+    }
+  });
+};
+
+// ============================================================================
+// Force Graph Helpers
+// ============================================================================
+
+/**
+ * Create force simulation for a graph.
+ * @param {Object} d3 - D3 library
+ * @param {Object[]} nodes - Array of nodes
+ * @param {Object[]} links - Array of links
+ * @param {number} width - Container width
+ * @param {number} height - Container height
+ * @param {Object} config - Simulation configuration
+ * @returns {Object} D3 force simulation
+ */
+const create_force_simulation = (
+  d3,
+  nodes,
+  links,
+  width,
+  height,
+  config = {}
+) => {
+  const {
+    link_distance = 120,
+    charge_strength = -400,
+    collision_radius = 50
+  } = config;
+
+  return d3
+    .forceSimulation(nodes)
+    .force(
+      'link',
+      d3
+        .forceLink(links)
+        .id((d) => d.id)
+        .distance(link_distance)
+    )
+    .force('charge', d3.forceManyBody().strength(charge_strength))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collision', d3.forceCollide().radius(collision_radius));
+};
+
+/**
+ * Create drag behavior for graph nodes.
+ * @param {Object} d3 - D3 library
+ * @param {Object} simulation - D3 force simulation
+ * @returns {Object} D3 drag behavior
+ */
+const create_drag_behavior = (d3, simulation) => {
+  return d3
+    .drag()
+    .on('start', (event, d) => {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    })
+    .on('drag', (event, d) => {
+      d.fx = event.x;
+      d.fy = event.y;
+    })
+    .on('end', (event, d) => {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    });
+};
+
+/**
+ * Draw graph links.
+ * @param {Object} g - D3 selection for graph group
+ * @param {Object[]} links - Array of links
+ * @param {string} marker_id - Arrow marker ID
+ * @returns {Object} D3 selection of links
+ */
+const draw_graph_links = (g, links, marker_id) => {
+  return g
+    .append('g')
+    .selectAll('line')
+    .data(links)
+    .join('line')
+    .attr('class', 'graph-link')
+    .attr('marker-end', `url(#${marker_id})`);
+};
+
+/**
+ * Draw graph nodes with circles and labels.
+ * @param {Object} g - D3 selection for graph group
+ * @param {Object[]} nodes - Array of nodes
+ * @param {string|number} root_id - Root node ID
+ * @param {Object} drag_behavior - D3 drag behavior
+ * @param {Function} on_click - Click handler
+ * @param {Object} options - Drawing options
+ * @returns {Object} D3 selection of nodes
+ */
+const draw_graph_nodes = (
+  g,
+  nodes,
+  root_id,
+  drag_behavior,
+  on_click,
+  options = {}
+) => {
+  const { use_depth_colors = false } = options;
+
+  const node = g
+    .append('g')
+    .selectAll('g')
+    .data(nodes)
+    .join('g')
+    .attr('class', (d) => `graph-node ${d.id === root_id ? 'root' : ''}`)
+    .call(drag_behavior)
+    .on('click', on_click);
+
+  node
+    .append('circle')
+    .attr('r', (d) => (d.id === root_id ? 18 : 14))
+    .attr('fill', (d) => {
+      if (use_depth_colors) return get_depth_fill(d.depth || 0);
+      return d.id === root_id ? '#fce4ec' : '#e3f2fd';
+    })
+    .attr('stroke', (d) => {
+      if (use_depth_colors) return get_depth_color(d.depth || 0);
+      return d.id === root_id ? '#e91e63' : '#2196f3';
+    })
+    .attr('stroke-width', use_depth_colors ? 2 : 1);
+
+  node
+    .append('text')
+    .attr('dy', 30)
+    .attr('text-anchor', 'middle')
+    .text((d) => truncate_string(d.symbol, 20));
+
+  return node;
+};
+
+/**
+ * Setup tick handler for force simulation.
+ * @param {Object} simulation - D3 force simulation
+ * @param {Object} link - D3 selection of links
+ * @param {Object} node - D3 selection of nodes
+ */
+const setup_simulation_tick = (simulation, link, node) => {
+  simulation.on('tick', () => {
+    link
+      .attr('x1', (d) => d.source.x)
+      .attr('y1', (d) => d.source.y)
+      .attr('x2', (d) => d.target.x)
+      .attr('y2', (d) => d.target.y);
+    node.attr('transform', (d) => `translate(${d.x},${d.y})`);
+  });
+};
+
+/**
+ * Create arrow marker for graph edges.
+ * @param {Object} svg - D3 SVG selection
+ * @param {string} id - Marker ID
+ * @param {string} fill_class - CSS class for fill
+ */
+const create_arrow_marker = (svg, id, fill_class = 'graph-arrow') => {
+  svg
+    .append('defs')
+    .append('marker')
+    .attr('id', id)
+    .attr('viewBox', '-0 -5 10 10')
+    .attr('refX', 20)
+    .attr('refY', 0)
+    .attr('orient', 'auto')
+    .attr('markerWidth', 6)
+    .attr('markerHeight', 6)
+    .append('path')
+    .attr('d', 'M 0,-5 L 10,0 L 0,5')
+    .attr('class', fill_class);
+};
+
+/**
+ * Create flowchart arrow marker (with different refX).
+ * @param {Object} svg - D3 SVG selection
+ */
+const create_flowchart_arrow_marker = (svg) => {
+  svg
+    .append('defs')
+    .append('marker')
+    .attr('id', 'flowchart-arrow')
+    .attr('viewBox', '-0 -5 10 10')
+    .attr('refX', 8)
+    .attr('refY', 0)
+    .attr('orient', 'auto')
+    .attr('markerWidth', 6)
+    .attr('markerHeight', 6)
+    .append('path')
+    .attr('d', 'M 0,-5 L 10,0 L 0,5')
+    .attr('fill', '#666');
+};
+
+// ============================================================================
+// Flowchart Renderer
+// ============================================================================
+
 /**
  * Creates a renderer for flowcharts.
  * @param {Object} state - Application state
@@ -13,6 +537,13 @@ export const create_flowchart_renderer = (state, d3) => {
   let flowchart_zoom = null;
   let flowchart_g = null;
   let flowchart_svg_element = null;
+
+  const config = {
+    node_width: 140,
+    node_height: 50,
+    level_gap: 80,
+    node_gap: 30
+  };
 
   /**
    * Render control flow flowchart with proper shapes.
@@ -50,19 +581,7 @@ export const create_flowchart_renderer = (state, d3) => {
     flowchart_g = flowchart_svg_element.append('g');
 
     // Define arrow marker
-    flowchart_svg_element
-      .append('defs')
-      .append('marker')
-      .attr('id', 'flowchart-arrow')
-      .attr('viewBox', '-0 -5 10 10')
-      .attr('refX', 8)
-      .attr('refY', 0)
-      .attr('orient', 'auto')
-      .attr('markerWidth', 6)
-      .attr('markerHeight', 6)
-      .append('path')
-      .attr('d', 'M 0,-5 L 10,0 L 0,5')
-      .attr('fill', '#666');
+    create_flowchart_arrow_marker(flowchart_svg_element);
 
     const nodes = state.flowchart_data.value.nodes;
     const edges = state.flowchart_data.value.edges;
@@ -72,283 +591,23 @@ export const create_flowchart_renderer = (state, d3) => {
       return;
     }
 
-    // Layout nodes using dagre-like algorithm (simple vertical layout)
-    const node_width = 140;
-    const node_height = 50;
-    const level_gap = 80;
-    const node_gap = 30;
-
-    // Build adjacency list and compute levels
-    const adj_list = new Map();
-    const in_degree = new Map();
-
-    nodes.forEach((n) => {
-      adj_list.set(n.id, []);
-      in_degree.set(n.id, 0);
-    });
-
-    edges.forEach((e) => {
-      if (adj_list.has(e.from)) {
-        adj_list.get(e.from).push(e.to);
-      }
-      if (in_degree.has(e.to)) {
-        in_degree.set(e.to, in_degree.get(e.to) + 1);
-      }
-    });
-
-    // Topological sort to assign levels
-    const levels = new Map();
-    const queue = [];
-
-    nodes.forEach((n) => {
-      if (in_degree.get(n.id) === 0) {
-        queue.push(n.id);
-        levels.set(n.id, 0);
-      }
-    });
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-      const current_level = levels.get(current);
-
-      for (const neighbor of adj_list.get(current) || []) {
-        if (!levels.has(neighbor)) {
-          levels.set(neighbor, current_level + 1);
-        } else {
-          levels.set(
-            neighbor,
-            Math.max(levels.get(neighbor), current_level + 1)
-          );
-        }
-        in_degree.set(neighbor, in_degree.get(neighbor) - 1);
-        if (in_degree.get(neighbor) === 0) {
-          queue.push(neighbor);
-        }
-      }
-    }
-
-    // Handle nodes not reached (cycles)
-    nodes.forEach((n) => {
-      if (!levels.has(n.id)) {
-        levels.set(n.id, 0);
-      }
-    });
-
-    // Group nodes by level
-    const level_groups = new Map();
-    nodes.forEach((n) => {
-      const level = levels.get(n.id);
-      if (!level_groups.has(level)) {
-        level_groups.set(level, []);
-      }
-      level_groups.get(level).push(n);
-    });
-
-    // Position nodes
-    const node_positions = new Map();
-
-    level_groups.forEach((level_nodes, level) => {
-      const total_width =
-        level_nodes.length * node_width + (level_nodes.length - 1) * node_gap;
-      const start_x = (width - total_width) / 2;
-
-      level_nodes.forEach((node, i) => {
-        node_positions.set(node.id, {
-          x: start_x + i * (node_width + node_gap) + node_width / 2,
-          y: 60 + level * (node_height + level_gap)
-        });
-      });
-    });
+    // Compute layout
+    const levels = compute_flowchart_levels(nodes, edges);
+    const node_positions = position_flowchart_nodes(
+      nodes,
+      levels,
+      width,
+      config
+    );
 
     // Draw edges
     const link_group = flowchart_g.append('g').attr('class', 'flowchart-links');
-
-    edges.forEach((edge) => {
-      const from_pos = node_positions.get(edge.from);
-      const to_pos = node_positions.get(edge.to);
-
-      if (!from_pos || !to_pos) return;
-
-      const from_node = nodes.find((n) => n.id === edge.from);
-
-      let start_y = from_pos.y + node_height / 2;
-      let end_y = to_pos.y - node_height / 2;
-
-      // Adjust for diamond shapes (decision nodes)
-      if (from_node && from_node.type === 'decision') {
-        start_y = from_pos.y + node_height / 2 + 5;
-      }
-
-      // Create path
-      const path = link_group
-        .append('path')
-        .attr('class', 'flowchart-edge')
-        .attr('marker-end', 'url(#flowchart-arrow)')
-        .attr('fill', 'none')
-        .attr('stroke', '#666')
-        .attr('stroke-width', 1.5);
-
-      // Different path for back edges (loops)
-      if (to_pos.y <= from_pos.y) {
-        const mid_x = Math.max(from_pos.x, to_pos.x) + node_width;
-        path.attr(
-          'd',
-          `
-          M ${from_pos.x + node_width / 2} ${from_pos.y}
-          Q ${mid_x} ${from_pos.y}, ${mid_x} ${(from_pos.y + to_pos.y) / 2}
-          Q ${mid_x} ${to_pos.y}, ${to_pos.x + node_width / 2} ${to_pos.y}
-        `
-        );
-      } else {
-        const dx = to_pos.x - from_pos.x;
-        if (Math.abs(dx) < 10) {
-          path.attr('d', `M ${from_pos.x} ${start_y} L ${to_pos.x} ${end_y}`);
-        } else {
-          const mid_y = (start_y + end_y) / 2;
-          path.attr(
-            'd',
-            `
-            M ${from_pos.x} ${start_y}
-            Q ${from_pos.x} ${mid_y}, ${(from_pos.x + to_pos.x) / 2} ${mid_y}
-            Q ${to_pos.x} ${mid_y}, ${to_pos.x} ${end_y}
-          `
-          );
-        }
-      }
-
-      // Add edge label
-      if (edge.label) {
-        const label_x = (from_pos.x + to_pos.x) / 2;
-        const label_y = (from_pos.y + to_pos.y) / 2;
-
-        link_group
-          .append('text')
-          .attr('class', 'flowchart-edge-label')
-          .attr('x', label_x + 10)
-          .attr('y', label_y)
-          .attr('text-anchor', 'start')
-          .attr('fill', '#666')
-          .attr('font-size', '11px')
-          .text(edge.label);
-      }
-    });
+    draw_flowchart_edges(link_group, edges, nodes, node_positions, config);
 
     // Draw nodes
     const node_group = flowchart_g.append('g').attr('class', 'flowchart-nodes');
-
-    nodes.forEach((node) => {
-      const pos = node_positions.get(node.id);
-      if (!pos) return;
-
-      const g = node_group
-        .append('g')
-        .attr('class', `flowchart-node flowchart-node-${node.type}`)
-        .attr('transform', `translate(${pos.x}, ${pos.y})`)
-        .style('cursor', node.source_snippet ? 'pointer' : 'default')
-        .on('click', (event) => {
-          event.stopPropagation();
-          if (node.source_snippet || node.full_label) {
-            state.selected_flowchart_node.value = node;
-          }
-        });
-
-      // Draw shape based on type
-      switch (node.type) {
-        case 'start':
-        case 'end':
-          g.append('rect')
-            .attr('x', -node_width / 2)
-            .attr('y', -node_height / 2)
-            .attr('width', node_width)
-            .attr('height', node_height)
-            .attr('rx', node_height / 2)
-            .attr('ry', node_height / 2)
-            .attr('class', 'flowchart-shape-oval');
-          break;
-
-        case 'decision':
-          const diamond_size = node_height * 0.8;
-          g.append('polygon')
-            .attr(
-              'points',
-              `
-              0,${-diamond_size}
-              ${diamond_size},0
-              0,${diamond_size}
-              ${-diamond_size},0
-            `
-            )
-            .attr('class', 'flowchart-shape-diamond');
-          break;
-
-        case 'loop':
-          const hw = node_width / 2;
-          const hh = node_height / 2;
-          const indent = 15;
-          g.append('polygon')
-            .attr(
-              'points',
-              `
-              ${-hw + indent},${-hh}
-              ${hw - indent},${-hh}
-              ${hw},0
-              ${hw - indent},${hh}
-              ${-hw + indent},${hh}
-              ${-hw},0
-            `
-            )
-            .attr('class', 'flowchart-shape-hexagon');
-          break;
-
-        case 'return':
-          g.append('rect')
-            .attr('x', -node_width / 2)
-            .attr('y', -node_height / 2)
-            .attr('width', node_width)
-            .attr('height', node_height)
-            .attr('rx', 8)
-            .attr('ry', 8)
-            .attr('class', 'flowchart-shape-return');
-          break;
-
-        case 'process':
-        default:
-          g.append('rect')
-            .attr('x', -node_width / 2)
-            .attr('y', -node_height / 2)
-            .attr('width', node_width)
-            .attr('height', node_height)
-            .attr('class', 'flowchart-shape-rect');
-          break;
-      }
-
-      // Add label
-      const label = node.label || node.type;
-      const max_label_length = 18;
-      const display_label =
-        label.length > max_label_length
-          ? label.substring(0, max_label_length - 2) + '...'
-          : label;
-
-      g.append('text')
-        .attr('class', 'flowchart-label')
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'middle')
-        .attr('y', node.type === 'decision' ? 0 : 0)
-        .text(display_label)
-        .append('title')
-        .text(node.full_label || label);
-
-      // Add line number if available
-      if (node.line) {
-        g.append('text')
-          .attr('class', 'flowchart-line-number')
-          .attr('text-anchor', 'middle')
-          .attr('y', node_height / 2 + 12)
-          .attr('font-size', '10px')
-          .attr('fill', '#999')
-          .text(`Line ${node.line}`);
-      }
+    draw_flowchart_nodes(node_group, nodes, node_positions, config, (node) => {
+      state.selected_flowchart_node.value = node;
     });
 
     // Auto-fit the flowchart to the viewport
@@ -368,27 +627,18 @@ export const create_flowchart_renderer = (state, d3) => {
     );
   };
 
-  /**
-   * Zoom in on the flowchart.
-   */
   const zoom_in = () => {
     if (flowchart_svg_element && flowchart_zoom) {
       flowchart_svg_element.transition().call(flowchart_zoom.scaleBy, 1.3);
     }
   };
 
-  /**
-   * Zoom out on the flowchart.
-   */
   const zoom_out = () => {
     if (flowchart_svg_element && flowchart_zoom) {
       flowchart_svg_element.transition().call(flowchart_zoom.scaleBy, 0.7);
     }
   };
 
-  /**
-   * Reset flowchart zoom to default.
-   */
   const reset_zoom = () => {
     if (flowchart_svg_element && flowchart_zoom) {
       flowchart_svg_element
@@ -397,13 +647,12 @@ export const create_flowchart_renderer = (state, d3) => {
     }
   };
 
-  return {
-    render_flowchart,
-    zoom_in,
-    zoom_out,
-    reset_zoom
-  };
+  return { render_flowchart, zoom_in, zoom_out, reset_zoom };
 };
+
+// ============================================================================
+// Call Graph Renderer
+// ============================================================================
 
 /**
  * Creates a renderer for call graphs.
@@ -416,34 +665,6 @@ export const create_call_graph_renderer = (state, d3) => {
   let svg = null;
   let g = null;
   let zoom = null;
-
-  // Depth color scale
-  const depth_colors = [
-    '#e91e63',
-    '#2196f3',
-    '#4caf50',
-    '#ff9800',
-    '#9c27b0',
-    '#00bcd4',
-    '#795548',
-    '#607d8b'
-  ];
-
-  const depth_fills = [
-    '#fce4ec',
-    '#e3f2fd',
-    '#e8f5e9',
-    '#fff3e0',
-    '#f3e5f5',
-    '#e0f7fa',
-    '#efebe9',
-    '#eceff1'
-  ];
-
-  const get_depth_color = (depth) =>
-    depth_colors[Math.min(depth, depth_colors.length - 1)];
-  const get_depth_fill = (depth) =>
-    depth_fills[Math.min(depth, depth_fills.length - 1)];
 
   /**
    * Render main call graph.
@@ -481,53 +702,19 @@ export const create_call_graph_renderer = (state, d3) => {
     g = svg.append('g');
 
     // Define arrow marker
-    svg
-      .append('defs')
-      .append('marker')
-      .attr('id', 'arrowhead')
-      .attr('viewBox', '-0 -5 10 10')
-      .attr('refX', 20)
-      .attr('refY', 0)
-      .attr('orient', 'auto')
-      .attr('markerWidth', 6)
-      .attr('markerHeight', 6)
-      .append('path')
-      .attr('d', 'M 0,-5 L 10,0 L 0,5')
-      .attr('class', 'graph-arrow');
+    create_arrow_marker(svg, 'arrowhead');
 
-    // Get full data from cache
+    // Get full data and filter by depth
     const all_nodes = state.call_graph_data.value.nodes || [];
     const all_edges = state.call_graph_data.value.edges || [];
     const root_id = state.call_graph_data.value.root;
-
-    // Filter edges by depth
     const max_depth = state.call_graph_depth.value;
 
-    let filtered_edges;
-    if (max_depth === 0) {
-      filtered_edges = all_edges;
-    } else {
-      filtered_edges = all_edges.filter((e) => {
-        const callee_ok = e.callee_depth != null && e.callee_depth <= max_depth;
-        const caller_ok = e.caller_depth != null && e.caller_depth <= max_depth;
-        return callee_ok || caller_ok;
-      });
-    }
-
-    // Collect node IDs from filtered edges
-    const allowed_node_ids = new Set();
-    allowed_node_ids.add(root_id);
-    filtered_edges.forEach((e) => {
-      allowed_node_ids.add(e.from);
-      allowed_node_ids.add(e.to);
-    });
-
-    // Filter nodes
-    const nodes = all_nodes
-      .filter((n) => allowed_node_ids.has(n.id))
-      .map((n) => ({ ...n }));
-    const edges = filtered_edges.filter(
-      (e) => allowed_node_ids.has(e.from) && allowed_node_ids.has(e.to)
+    const { nodes, edges } = filter_by_depth(
+      all_nodes,
+      all_edges,
+      root_id,
+      max_depth
     );
 
     if (nodes.length === 0) {
@@ -545,54 +732,19 @@ export const create_call_graph_renderer = (state, d3) => {
       .filter((l) => l.source && l.target);
 
     // Create simulation
-    simulation = d3
-      .forceSimulation(nodes)
-      .force(
-        'link',
-        d3
-          .forceLink(links)
-          .id((d) => d.id)
-          .distance(120)
-      )
-      .force('charge', d3.forceManyBody().strength(-400))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(50));
+    simulation = create_force_simulation(d3, nodes, links, width, height);
 
     // Draw links
-    const link = g
-      .append('g')
-      .selectAll('line')
-      .data(links)
-      .join('line')
-      .attr('class', 'graph-link')
-      .attr('marker-end', 'url(#arrowhead)');
+    const link = draw_graph_links(g, links, 'arrowhead');
 
     // Draw nodes
-    const node = g
-      .append('g')
-      .selectAll('g')
-      .data(nodes)
-      .join('g')
-      .attr('class', (d) => `graph-node ${d.id === root_id ? 'root' : ''}`)
-      .call(
-        d3
-          .drag()
-          .on('start', (event, d) => {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
-          })
-          .on('drag', (event, d) => {
-            d.fx = event.x;
-            d.fy = event.y;
-          })
-          .on('end', (event, d) => {
-            if (!event.active) simulation.alphaTarget(0);
-            d.fx = null;
-            d.fy = null;
-          })
-      )
-      .on('click', (event, d) => {
+    const drag_behavior = create_drag_behavior(d3, simulation);
+    const node = draw_graph_nodes(
+      g,
+      nodes,
+      root_id,
+      drag_behavior,
+      (event, d) => {
         event.stopPropagation();
         state.selected_graph_node.value = d;
         g.selectAll('.graph-node').classed('selected', (n) => n.id === d.id);
@@ -600,31 +752,11 @@ export const create_call_graph_renderer = (state, d3) => {
           'highlighted',
           (l) => l.source.id === d.id || l.target.id === d.id
         );
-      });
+      }
+    );
 
-    node
-      .append('circle')
-      .attr('r', (d) => (d.id === root_id ? 18 : 14))
-      .attr('fill', (d) => (d.id === root_id ? '#fce4ec' : '#e3f2fd'))
-      .attr('stroke', (d) => (d.id === root_id ? '#e91e63' : '#2196f3'));
-
-    node
-      .append('text')
-      .attr('dy', 30)
-      .attr('text-anchor', 'middle')
-      .text((d) =>
-        d.symbol.length > 20 ? d.symbol.substring(0, 17) + '...' : d.symbol
-      );
-
-    // Update positions on tick
-    simulation.on('tick', () => {
-      link
-        .attr('x1', (d) => d.source.x)
-        .attr('y1', (d) => d.source.y)
-        .attr('x2', (d) => d.target.x)
-        .attr('y2', (d) => d.target.y);
-      node.attr('transform', (d) => `translate(${d.x},${d.y})`);
-    });
+    // Setup tick handler
+    setup_simulation_tick(simulation, link, node);
 
     // Click on background to deselect
     svg.on('click', () => {
@@ -634,25 +766,11 @@ export const create_call_graph_renderer = (state, d3) => {
     });
   };
 
-  /**
-   * Zoom in on the call graph.
-   */
   const zoom_in = () => svg?.transition().call(zoom.scaleBy, 1.3);
-
-  /**
-   * Zoom out on the call graph.
-   */
   const zoom_out = () => svg?.transition().call(zoom.scaleBy, 0.7);
-
-  /**
-   * Reset call graph zoom to default.
-   */
   const reset_zoom = () =>
     svg?.transition().call(zoom.transform, d3.zoomIdentity);
 
-  /**
-   * Stop the force simulation.
-   */
   const stop_simulation = () => {
     if (simulation) {
       simulation.stop();
@@ -671,6 +789,10 @@ export const create_call_graph_renderer = (state, d3) => {
   };
 };
 
+// ============================================================================
+// Inline Graph Renderer
+// ============================================================================
+
 /**
  * Creates a renderer for inline call graphs (function detail tab).
  * @param {Object} state - Application state
@@ -682,34 +804,6 @@ export const create_inline_graph_renderer = (state, d3) => {
   let inline_graph_svg_element = null;
   let inline_graph_g = null;
   let inline_graph_zoom = null;
-
-  // Depth color scale
-  const depth_colors = [
-    '#e91e63',
-    '#2196f3',
-    '#4caf50',
-    '#ff9800',
-    '#9c27b0',
-    '#00bcd4',
-    '#795548',
-    '#607d8b'
-  ];
-
-  const depth_fills = [
-    '#fce4ec',
-    '#e3f2fd',
-    '#e8f5e9',
-    '#fff3e0',
-    '#f3e5f5',
-    '#e0f7fa',
-    '#efebe9',
-    '#eceff1'
-  ];
-
-  const get_depth_color = (depth) =>
-    depth_colors[Math.min(depth, depth_colors.length - 1)];
-  const get_depth_fill = (depth) =>
-    depth_fills[Math.min(depth, depth_fills.length - 1)];
 
   /**
    * Render inline call graph.
@@ -747,100 +841,23 @@ export const create_inline_graph_renderer = (state, d3) => {
     inline_graph_g = inline_graph_svg_element.append('g');
 
     // Define arrow marker
-    inline_graph_svg_element
-      .append('defs')
-      .append('marker')
-      .attr('id', 'inline-arrowhead')
-      .attr('viewBox', '-0 -5 10 10')
-      .attr('refX', 20)
-      .attr('refY', 0)
-      .attr('orient', 'auto')
-      .attr('markerWidth', 6)
-      .attr('markerHeight', 6)
-      .append('path')
-      .attr('d', 'M 0,-5 L 10,0 L 0,5')
-      .attr('class', 'graph-arrow');
+    create_arrow_marker(inline_graph_svg_element, 'inline-arrowhead');
 
-    // Get full data from cache
+    // Get full data and filter by depth
     const all_nodes = state.inline_call_graph_data.value.nodes || [];
     const all_edges = state.inline_call_graph_data.value.edges || [];
     const root_id = state.inline_call_graph_data.value.root;
-
-    // Filter edges by depth
     const max_depth = state.inline_call_graph_depth.value;
 
-    let filtered_edges;
-    if (max_depth === 0) {
-      filtered_edges = all_edges;
-    } else {
-      filtered_edges = all_edges.filter((e) => {
-        const callee_ok = e.callee_depth != null && e.callee_depth <= max_depth;
-        const caller_ok = e.caller_depth != null && e.caller_depth <= max_depth;
-        return callee_ok || caller_ok;
-      });
-    }
-
-    // Collect node IDs from filtered edges
-    const allowed_node_ids = new Set();
-    allowed_node_ids.add(root_id);
-    filtered_edges.forEach((e) => {
-      allowed_node_ids.add(e.from);
-      allowed_node_ids.add(e.to);
-    });
-
-    // Filter nodes
-    const nodes = all_nodes
-      .filter((n) => allowed_node_ids.has(n.id))
-      .map((n) => ({ ...n }));
-    const edges = filtered_edges.filter(
-      (e) => allowed_node_ids.has(e.from) && allowed_node_ids.has(e.to)
+    const { nodes, edges } = filter_by_depth(
+      all_nodes,
+      all_edges,
+      root_id,
+      max_depth
     );
 
     // Calculate depth for each node using BFS from root
-    const node_depths = new Map();
-    node_depths.set(root_id, 0);
-
-    // Build adjacency lists for BFS
-    const callee_adj = new Map();
-    const caller_adj = new Map();
-    edges.forEach((e) => {
-      if (!callee_adj.has(e.from)) callee_adj.set(e.from, []);
-      callee_adj.get(e.from).push(e.to);
-      if (!caller_adj.has(e.to)) caller_adj.set(e.to, []);
-      caller_adj.get(e.to).push(e.from);
-    });
-
-    // BFS for callees (positive depth)
-    const callee_queue = [root_id];
-    while (callee_queue.length > 0) {
-      const current = callee_queue.shift();
-      const current_depth = node_depths.get(current);
-      const callees = callee_adj.get(current) || [];
-      for (const callee of callees) {
-        if (!node_depths.has(callee)) {
-          node_depths.set(callee, current_depth + 1);
-          callee_queue.push(callee);
-        }
-      }
-    }
-
-    // BFS for callers
-    const caller_queue = [root_id];
-    const caller_visited = new Set([root_id]);
-    while (caller_queue.length > 0) {
-      const current = caller_queue.shift();
-      const current_depth = node_depths.get(current);
-      const callers = caller_adj.get(current) || [];
-      for (const caller of callers) {
-        if (!caller_visited.has(caller)) {
-          caller_visited.add(caller);
-          if (!node_depths.has(caller)) {
-            node_depths.set(caller, current_depth + 1);
-          }
-          caller_queue.push(caller);
-        }
-      }
-    }
+    const node_depths = calculate_node_depths(nodes, edges, root_id);
 
     // Store depth on nodes for color-coding
     nodes.forEach((n) => {
@@ -857,54 +874,30 @@ export const create_inline_graph_renderer = (state, d3) => {
       .filter((l) => l.source && l.target);
 
     // Create force-directed simulation
-    inline_simulation = d3
-      .forceSimulation(nodes)
-      .force(
-        'link',
-        d3
-          .forceLink(links)
-          .id((d) => d.id)
-          .distance(100)
-      )
-      .force('charge', d3.forceManyBody().strength(-300))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(40));
+    inline_simulation = create_force_simulation(
+      d3,
+      nodes,
+      links,
+      width,
+      height,
+      {
+        link_distance: 100,
+        charge_strength: -300,
+        collision_radius: 40
+      }
+    );
 
     // Draw links
-    const link = inline_graph_g
-      .append('g')
-      .selectAll('line')
-      .data(links)
-      .join('line')
-      .attr('class', 'graph-link')
-      .attr('marker-end', 'url(#inline-arrowhead)');
+    const link = draw_graph_links(inline_graph_g, links, 'inline-arrowhead');
 
     // Draw nodes with depth-based colors
-    const node = inline_graph_g
-      .append('g')
-      .selectAll('g')
-      .data(nodes)
-      .join('g')
-      .attr('class', (d) => `graph-node ${d.id === root_id ? 'root' : ''}`)
-      .call(
-        d3
-          .drag()
-          .on('start', (event, d) => {
-            if (!event.active) inline_simulation.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
-          })
-          .on('drag', (event, d) => {
-            d.fx = event.x;
-            d.fy = event.y;
-          })
-          .on('end', (event, d) => {
-            if (!event.active) inline_simulation.alphaTarget(0);
-            d.fx = null;
-            d.fy = null;
-          })
-      )
-      .on('click', (event, d) => {
+    const drag_behavior = create_drag_behavior(d3, inline_simulation);
+    const node = draw_graph_nodes(
+      inline_graph_g,
+      nodes,
+      root_id,
+      drag_behavior,
+      (event, d) => {
         event.stopPropagation();
         state.selected_inline_graph_node.value = d;
         inline_graph_g
@@ -914,32 +907,12 @@ export const create_inline_graph_renderer = (state, d3) => {
           'highlighted',
           (l) => l.source.id === d.id || l.target.id === d.id
         );
-      });
+      },
+      { use_depth_colors: true }
+    );
 
-    node
-      .append('circle')
-      .attr('r', (d) => (d.id === root_id ? 18 : 14))
-      .attr('fill', (d) => get_depth_fill(d.depth))
-      .attr('stroke', (d) => get_depth_color(d.depth))
-      .attr('stroke-width', 2);
-
-    node
-      .append('text')
-      .attr('dy', 30)
-      .attr('text-anchor', 'middle')
-      .text((d) =>
-        d.symbol.length > 20 ? d.symbol.substring(0, 17) + '...' : d.symbol
-      );
-
-    // Update positions on tick
-    inline_simulation.on('tick', () => {
-      link
-        .attr('x1', (d) => d.source.x)
-        .attr('y1', (d) => d.source.y)
-        .attr('x2', (d) => d.target.x)
-        .attr('y2', (d) => d.target.y);
-      node.attr('transform', (d) => `translate(${d.x},${d.y})`);
-    });
+    // Setup tick handler
+    setup_simulation_tick(inline_simulation, link, node);
 
     // Click on background to deselect
     inline_graph_svg_element.on('click', () => {
@@ -949,9 +922,6 @@ export const create_inline_graph_renderer = (state, d3) => {
     });
   };
 
-  /**
-   * Zoom in on the inline call graph.
-   */
   const zoom_in = () => {
     if (inline_graph_svg_element && inline_graph_zoom) {
       inline_graph_svg_element
@@ -960,9 +930,6 @@ export const create_inline_graph_renderer = (state, d3) => {
     }
   };
 
-  /**
-   * Zoom out on the inline call graph.
-   */
   const zoom_out = () => {
     if (inline_graph_svg_element && inline_graph_zoom) {
       inline_graph_svg_element
@@ -971,9 +938,6 @@ export const create_inline_graph_renderer = (state, d3) => {
     }
   };
 
-  /**
-   * Reset inline call graph zoom to default.
-   */
   const reset_zoom = () => {
     if (inline_graph_svg_element && inline_graph_zoom) {
       inline_graph_svg_element
@@ -982,9 +946,6 @@ export const create_inline_graph_renderer = (state, d3) => {
     }
   };
 
-  /**
-   * Stop the inline graph force simulation.
-   */
   const stop_simulation = () => {
     if (inline_simulation) {
       inline_simulation.stop();
@@ -1000,6 +961,10 @@ export const create_inline_graph_renderer = (state, d3) => {
     stop_simulation
   };
 };
+
+// ============================================================================
+// Tree Renderer
+// ============================================================================
 
 /**
  * Creates a renderer for tree views (caller/callee trees).
@@ -1107,11 +1072,7 @@ export const create_tree_renderer = (state, d3) => {
       .attr('dy', '0.35em')
       .attr('x', (d) => (d.children ? -15 : 15))
       .attr('text-anchor', (d) => (d.children ? 'end' : 'start'))
-      .text((d) => {
-        const symbol = d.data.symbol;
-        if (symbol.length > 25) return symbol.substring(0, 22) + '...';
-        return symbol;
-      })
+      .text((d) => truncate_string(d.data.symbol, 25))
       .clone(true)
       .lower()
       .attr('stroke', 'white')
@@ -1161,7 +1122,5 @@ export const create_tree_renderer = (state, d3) => {
     );
   };
 
-  return {
-    render_tree
-  };
+  return { render_tree };
 };
