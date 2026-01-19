@@ -1,85 +1,7 @@
 'use strict';
 
-import { get_types_from_tree, prepare_entities_for_nodes } from '../../lib/project.mjs';
+import { prepare_entities_for_nodes } from '../../lib/project.mjs';
 import { test } from 'st';
-
-// ============ get_types_from_tree tests ============
-
-await test('get_types_from_tree extracts unique node types', async (t) => {
-  // Create a simple mock tree with walk() method
-  const nodes = [
-    { type: 'program', children: [
-      { type: 'function_definition', children: [
-        { type: 'identifier', children: [] },
-        { type: 'parameter_list', children: [] }
-      ]},
-      { type: 'comment', children: [] }
-    ]}
-  ];
-
-  // Flatten nodes for cursor traversal
-  const flatNodes = [];
-  const flatten = (node, parent = null) => {
-    flatNodes.push({ ...node, parent, originalChildren: node.children });
-    if (node.children) {
-      for (const child of node.children) {
-        flatten(child, flatNodes[flatNodes.length - 1]);
-      }
-    }
-  };
-  flatten(nodes[0]);
-
-  let currentIndex = 0;
-
-  const mockTree = {
-    walk: () => ({
-      get currentNode() { return { type: flatNodes[currentIndex].type }; },
-      gotoFirstChild: () => {
-        const node = flatNodes[currentIndex];
-        if (node.originalChildren && node.originalChildren.length > 0) {
-          currentIndex++;
-          return true;
-        }
-        return false;
-      },
-      gotoNextSibling: () => {
-        const current = flatNodes[currentIndex];
-        const parent = current.parent;
-        if (!parent) return false;
-
-        const siblings = parent.originalChildren || [];
-        const currentInSiblings = siblings.findIndex(s => s.type === current.type);
-        if (currentInSiblings < siblings.length - 1) {
-          // Move to next sibling
-          for (let i = currentIndex + 1; i < flatNodes.length; i++) {
-            if (flatNodes[i].parent === parent) {
-              currentIndex = i;
-              return true;
-            }
-          }
-        }
-        return false;
-      },
-      gotoParent: () => {
-        const current = flatNodes[currentIndex];
-        if (current.parent) {
-          for (let i = 0; i < flatNodes.length; i++) {
-            if (flatNodes[i] === current.parent) {
-              currentIndex = i;
-              return true;
-            }
-          }
-        }
-        return false;
-      }
-    })
-  };
-
-  const types = get_types_from_tree(mockTree);
-
-  t.assert.eq(Array.isArray(types), true, 'Should return an array');
-  t.assert.eq(types.includes('program'), true, 'Should include program type');
-});
 
 // ============ prepare_entities_for_nodes tests ============
 
@@ -157,7 +79,11 @@ await test('prepare_entities_for_nodes associates comments', async (t) => {
     language: 'c'
   });
 
-  t.assert.eq(entities[0].comment, '// This is a comment', 'Should associate comment with function');
+  t.assert.eq(
+    entities[0].comment,
+    '// This is a comment',
+    'Should associate comment with function'
+  );
 });
 
 await test('prepare_entities_for_nodes handles JavaScript arrow functions', async (t) => {
@@ -171,7 +97,8 @@ await test('prepare_entities_for_nodes handles JavaScript arrow functions', asyn
           parent: {
             type: 'variable_declarator',
             childCount: 2,
-            child: (i) => i === 0 ? { type: 'identifier', text: 'myArrowFunc' } : null
+            child: (i) =>
+              i === 0 ? { type: 'identifier', text: 'myArrowFunc' } : null
           }
         },
         content: 'const myArrowFunc = () => {}',
@@ -193,7 +120,11 @@ await test('prepare_entities_for_nodes handles JavaScript arrow functions', asyn
   });
 
   t.assert.eq(entities.length, 1, 'Should create one entity');
-  t.assert.eq(entities[0].symbol, 'myArrowFunc', 'Should extract arrow function name from parent');
+  t.assert.eq(
+    entities[0].symbol,
+    'myArrowFunc',
+    'Should extract arrow function name from parent'
+  );
 });
 
 await test('prepare_entities_for_nodes handles Python functions', async (t) => {
@@ -203,7 +134,10 @@ await test('prepare_entities_for_nodes handles Python functions', async (t) => {
         node: {
           type: 'function_definition',
           childCount: 2,
-          child: (i) => i === 0 ? { type: 'def' } : { type: 'identifier', text: 'my_python_func' }
+          child: (i) =>
+            i === 0
+              ? { type: 'def' }
+              : { type: 'identifier', text: 'my_python_func' }
         },
         content: 'def my_python_func():\n    pass',
         start_line: 1,
@@ -230,7 +164,11 @@ await test('prepare_entities_for_nodes handles Python functions', async (t) => {
   });
 
   t.assert.eq(entities.length, 1, 'Should create one entity');
-  t.assert.eq(entities[0].symbol, 'my_python_func', 'Should extract Python function name');
+  t.assert.eq(
+    entities[0].symbol,
+    'my_python_func',
+    'Should extract Python function name'
+  );
   t.assert.eq(entities[0].language, 'python', 'Should set language to python');
 });
 
@@ -267,7 +205,11 @@ await test('prepare_entities_for_nodes handles parameters', async (t) => {
     language: 'c'
   });
 
-  t.assert.eq(entities[0].parameters, '(int a, int b)', 'Should capture and normalize parameters');
+  t.assert.eq(
+    entities[0].parameters,
+    '(int a, int b)',
+    'Should capture and normalize parameters'
+  );
 });
 
 await test('prepare_entities_for_nodes handles empty function list', async (t) => {
@@ -294,7 +236,10 @@ await test('prepare_entities_for_nodes handles JavaScript function declarations'
         node: {
           type: 'function_declaration',
           childCount: 2,
-          child: (i) => i === 1 ? { type: 'identifier', text: 'myFunction' } : { type: 'function' }
+          child: (i) =>
+            i === 1
+              ? { type: 'identifier', text: 'myFunction' }
+              : { type: 'function' }
         },
         content: 'function myFunction() {}',
         start_line: 1,
@@ -315,7 +260,11 @@ await test('prepare_entities_for_nodes handles JavaScript function declarations'
   });
 
   t.assert.eq(entities.length, 1, 'Should create one entity');
-  t.assert.eq(entities[0].symbol, 'myFunction', 'Should extract function declaration name');
+  t.assert.eq(
+    entities[0].symbol,
+    'myFunction',
+    'Should extract function declaration name'
+  );
 });
 
 await test('prepare_entities_for_nodes handles JavaScript method definitions', async (t) => {
@@ -325,7 +274,8 @@ await test('prepare_entities_for_nodes handles JavaScript method definitions', a
         node: {
           type: 'method_definition',
           childCount: 2,
-          child: (i) => i === 0 ? { type: 'property_identifier', text: 'myMethod' } : null
+          child: (i) =>
+            i === 0 ? { type: 'property_identifier', text: 'myMethod' } : null
         },
         content: 'myMethod() {}',
         start_line: 1,

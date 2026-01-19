@@ -12,7 +12,7 @@ import { test } from 'st';
 import { query } from '../../lib/db.mjs';
 import {
   build_call_graph,
-  insert_relationship
+  batch_insert_relationships
 } from '../../lib/model/relationship.mjs';
 import { insert_or_update_project } from '../../lib/model/project.mjs';
 import { insert_or_update_entity } from '../../lib/model/entity.mjs';
@@ -98,47 +98,20 @@ const setup_test_fixtures = async () => {
   }
 
   // Create relationships (caller -> callee)
-  // caller_a calls root_func
-  await insert_relationship({
-    caller: entities.caller_a.id,
-    callee: entities.root_func.id,
-    line: 35
-  });
-
-  // caller_b calls root_func
-  await insert_relationship({
-    caller: entities.caller_b.id,
-    callee: entities.root_func.id,
-    line: 55
-  });
-
-  // caller_c calls caller_a
-  await insert_relationship({
-    caller: entities.caller_c.id,
-    callee: entities.caller_a.id,
-    line: 75
-  });
-
-  // root_func calls callee_a
-  await insert_relationship({
-    caller: entities.root_func.id,
-    callee: entities.callee_a.id,
-    line: 15
-  });
-
-  // root_func calls callee_b
-  await insert_relationship({
-    caller: entities.root_func.id,
-    callee: entities.callee_b.id,
-    line: 16
-  });
-
-  // callee_a calls callee_a1
-  await insert_relationship({
-    caller: entities.callee_a.id,
-    callee: entities.callee_a1.id,
-    line: 95
-  });
+  await batch_insert_relationships([
+    // caller_a calls root_func
+    { caller: entities.caller_a.id, callee: entities.root_func.id, line: 35 },
+    // caller_b calls root_func
+    { caller: entities.caller_b.id, callee: entities.root_func.id, line: 55 },
+    // caller_c calls caller_a
+    { caller: entities.caller_c.id, callee: entities.caller_a.id, line: 75 },
+    // root_func calls callee_a
+    { caller: entities.root_func.id, callee: entities.callee_a.id, line: 15 },
+    // root_func calls callee_b
+    { caller: entities.root_func.id, callee: entities.callee_b.id, line: 16 },
+    // callee_a calls callee_a1
+    { caller: entities.callee_a.id, callee: entities.callee_a1.id, line: 95 }
+  ]);
 
   return { project_id, entities };
 };
