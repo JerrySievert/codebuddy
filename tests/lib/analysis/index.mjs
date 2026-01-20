@@ -34,8 +34,17 @@ const cleanup_all_test_projects = async () => {
   const projects =
     await query`SELECT id FROM project WHERE name LIKE '_test_analysis_%'`;
   for (const p of projects) {
+    // Delete from tables with foreign keys to entity first
+    await query`DELETE FROM inheritance WHERE child_entity_id IN (SELECT id FROM entity WHERE project_id = ${p.id})`;
+    await query`DELETE FROM inheritance WHERE parent_entity_id IN (SELECT id FROM entity WHERE project_id = ${p.id})`;
+    await query`DELETE FROM reference WHERE entity_id IN (SELECT id FROM entity WHERE project_id = ${p.id})`;
     await query`DELETE FROM relationship WHERE caller IN (SELECT id FROM entity WHERE project_id = ${p.id})`;
     await query`DELETE FROM relationship WHERE callee IN (SELECT id FROM entity WHERE project_id = ${p.id})`;
+    // Delete from tables with foreign keys to project
+    await query`DELETE FROM symbol_reference WHERE project_id = ${p.id}`;
+    await query`DELETE FROM sourcecode WHERE project_id = ${p.id}`;
+    await query`DELETE FROM project_analysis WHERE project_id = ${p.id}`;
+    // Now delete entities and project
     await query`DELETE FROM entity WHERE project_id = ${p.id}`;
     await query`DELETE FROM project WHERE id = ${p.id}`;
   }
