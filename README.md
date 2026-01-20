@@ -252,11 +252,10 @@ The server provides both a REST API and a web interface at http://localhost:3000
 
 #### Server Options
 
-| Option                     | Description                                                                              |
-| -------------------------- | ---------------------------------------------------------------------------------------- |
-| `--read-only`              | Start server in read-only mode. Disables project import, refresh, and delete operations. |
-| `--disable-mcp`            | Disable MCP HTTP transport endpoints.                                                    |
-| `--tracing-endpoint <url>` | Enable OpenTelemetry tracing and export to the specified OTLP HTTP endpoint.             |
+| Option          | Description                                                                              |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| `--read-only`   | Start server in read-only mode. Disables project import, refresh, and delete operations. |
+| `--disable-mcp` | Disable MCP HTTP transport endpoints.                                                    |
 
 **Read-only mode:**
 
@@ -273,45 +272,6 @@ node server.mjs --disable-mcp
 ```
 
 Disables the `/mcp` endpoint for environments where only the REST API is needed.
-
-**OpenTelemetry Tracing:**
-
-To enable distributed tracing, use the `--import` flag to load the instrumentation module before the server starts:
-
-```bash
-node --import ./instrumentation.mjs server.mjs --tracing-endpoint http://localhost:4318/v1/traces
-```
-
-This enables automatic instrumentation for:
-
-- HTTP requests (incoming and outgoing)
-- PostgreSQL database queries
-- Hapi framework routes
-- DNS lookups
-- Filesystem operations
-
-The traces are exported via OTLP HTTP to the specified endpoint. Compatible with Jaeger, Zipkin, Grafana Tempo, and other OpenTelemetry collectors.
-
-Example with Jaeger:
-
-```bash
-# Start Jaeger with OTLP support
-docker run -d --name jaeger \
-  -p 16686:16686 \
-  -p 4318:4318 \
-  jaegertracing/all-in-one:latest
-
-# Start CodeBuddy with tracing
-node --import ./instrumentation.mjs server.mjs --tracing-endpoint http://localhost:4318/v1/traces
-```
-
-Then view traces at http://localhost:16686.
-
-**Combining options:**
-
-```bash
-node --import ./instrumentation.mjs server.mjs --read-only --tracing-endpoint http://localhost:4318/v1/traces
-```
 
 #### Web Interface Features
 
