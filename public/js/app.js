@@ -278,6 +278,47 @@ createApp({
         .replace(/>/g, '&gt;');
     });
 
+    /**
+     * Check if a file is a markdown file based on extension.
+     */
+    const is_markdown_file = (filename) => {
+      if (!filename) return false;
+      const ext = filename.split('.').pop()?.toLowerCase() || '';
+      return ext === 'md' || ext === 'markdown';
+    };
+
+    /**
+     * Computed property for rendered markdown content.
+     */
+    const rendered_markdown = computed(() => {
+      const source = state.file_source.value?.source;
+      const filename = state.selected_file.value;
+
+      if (!source || !is_markdown_file(filename)) return '';
+
+      try {
+        if (window.marked) {
+          // Configure marked for safe rendering
+          window.marked.setOptions({
+            gfm: true, // GitHub Flavored Markdown
+            breaks: true, // Convert \n to <br>
+            headerIds: true,
+            mangle: false
+          });
+          return window.marked.parse(source);
+        }
+      } catch (e) {
+        console.warn('Markdown parsing failed:', e);
+      }
+
+      // Fallback: escape HTML and show as plain text
+      return source
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>');
+    });
+
     // ========================================
     // View function details from graph node
     // ========================================
@@ -501,6 +542,8 @@ createApp({
       groupedReferences: dir_computed.grouped_references,
       highlightedSource: highlighted_source,
       highlightedFileSource: highlighted_file_source,
+      renderedMarkdown: rendered_markdown,
+      isMarkdownFile: is_markdown_file,
 
       // Syntax highlighting helpers
       getHighlightLanguage: get_highlight_language,
