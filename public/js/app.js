@@ -218,6 +218,66 @@ createApp({
         .replace(/>/g, '&gt;');
     });
 
+    /**
+     * Computed property for syntax-highlighted file source code.
+     */
+    const highlighted_file_source = computed(() => {
+      const source = state.file_source.value?.source;
+      if (!source) return '';
+
+      // Determine language from filename extension
+      const filename = state.selected_file.value || '';
+      const ext = filename.split('.').pop()?.toLowerCase() || '';
+      const ext_to_lang = {
+        js: 'javascript',
+        mjs: 'javascript',
+        cjs: 'javascript',
+        ts: 'typescript',
+        tsx: 'typescript',
+        jsx: 'javascript',
+        py: 'python',
+        rb: 'ruby',
+        go: 'go',
+        rs: 'rust',
+        c: 'c',
+        h: 'c',
+        cpp: 'cpp',
+        hpp: 'cpp',
+        java: 'java',
+        kt: 'kotlin',
+        swift: 'swift',
+        php: 'php',
+        cs: 'csharp',
+        sql: 'sql',
+        json: 'json',
+        yaml: 'yaml',
+        yml: 'yaml',
+        xml: 'xml',
+        html: 'html',
+        css: 'css',
+        scss: 'scss',
+        md: 'markdown',
+        sh: 'bash',
+        bash: 'bash'
+      };
+      const hljs_lang = ext_to_lang[ext] || 'plaintext';
+
+      try {
+        if (window.hljs && hljs_lang !== 'plaintext') {
+          const result = window.hljs.highlight(source, { language: hljs_lang });
+          return result.value;
+        }
+      } catch (e) {
+        console.warn('Syntax highlighting failed:', e);
+      }
+
+      // Fallback: escape HTML and return plain text
+      return source
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    });
+
     // ========================================
     // View function details from graph node
     // ========================================
@@ -349,6 +409,8 @@ createApp({
       loadingFileFunctions: state.loading_file_functions,
       fileAnalytics: state.file_analytics,
       loadingFileAnalytics: state.loading_file_analytics,
+      fileSource: state.file_source,
+      loadingFileSource: state.loading_file_source,
       showingAllFunctions: state.showing_all_functions,
       allFunctions: state.all_functions,
       loadingAllFunctions: state.loading_all_functions,
@@ -438,9 +500,47 @@ createApp({
       directoryBreadcrumbs: dir_computed.directory_breadcrumbs,
       groupedReferences: dir_computed.grouped_references,
       highlightedSource: highlighted_source,
+      highlightedFileSource: highlighted_file_source,
 
       // Syntax highlighting helpers
       getHighlightLanguage: get_highlight_language,
+      getFileLanguage: (filename) => {
+        if (!filename) return 'plaintext';
+        const ext = filename.split('.').pop()?.toLowerCase() || '';
+        const ext_to_lang = {
+          js: 'javascript',
+          mjs: 'javascript',
+          cjs: 'javascript',
+          ts: 'typescript',
+          tsx: 'typescript',
+          jsx: 'javascript',
+          py: 'python',
+          rb: 'ruby',
+          go: 'go',
+          rs: 'rust',
+          c: 'c',
+          h: 'c',
+          cpp: 'cpp',
+          hpp: 'cpp',
+          java: 'java',
+          kt: 'kotlin',
+          swift: 'swift',
+          php: 'php',
+          cs: 'csharp',
+          sql: 'sql',
+          json: 'json',
+          yaml: 'yaml',
+          yml: 'yaml',
+          xml: 'xml',
+          html: 'html',
+          css: 'css',
+          scss: 'scss',
+          md: 'markdown',
+          sh: 'bash',
+          bash: 'bash'
+        };
+        return ext_to_lang[ext] || 'plaintext';
+      },
 
       // Methods - using camelCase for Vue template compatibility
       selectProject: data_handlers.select_project,
@@ -547,6 +647,7 @@ createApp({
       loadAnalysisDetail: analysis_handlers.load_analysis_detail,
       setAnalysisTab: analysis_handlers.set_analysis_tab,
       navigateToFunctionById: analysis_handlers.navigate_to_function_by_id,
+      navigateToFile: analysis_handlers.navigate_to_file,
 
       // Formatters
       formatDate: formatters.format_date,

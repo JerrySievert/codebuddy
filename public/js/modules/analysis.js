@@ -280,6 +280,41 @@ export const create_analysis_handlers = (state, api, update_url) => {
   };
 
   /**
+   * Navigate to a file from analysis view.
+   * @param {string} filename - Filename to navigate to
+   */
+  const navigate_to_file = async (filename) => {
+    if (!filename) return;
+
+    state.show_analysis_view.value = false;
+    state.analysis_data.value = null;
+    state.selected_function.value = null;
+    state.selected_file.value = filename;
+    state.file_source.value = null;
+
+    const project_name = state.selected_project.value?.name;
+
+    try {
+      const [functions_data, analytics_data, source_data] = await Promise.all([
+        api.load_file_functions(project_name, filename),
+        api.load_file_analytics(project_name, filename),
+        api.load_file_source(project_name, filename)
+      ]);
+      state.file_functions.value = functions_data;
+      state.file_analytics.value = analytics_data;
+      state.file_source.value = source_data;
+    } catch (error) {
+      console.error('Failed to load file data:', error);
+      state.file_functions.value = [];
+      state.file_analytics.value = null;
+      state.file_source.value = null;
+    }
+
+    state.active_tab.value = 'source';
+    update_url();
+  };
+
+  /**
    * Navigate to a function from analysis view.
    * @param {Object} fn - Function object with symbol and filename
    */
@@ -316,7 +351,8 @@ export const create_analysis_handlers = (state, api, update_url) => {
     load_analysis_dashboard,
     load_analysis_detail,
     set_analysis_tab,
-    navigate_to_function_by_id
+    navigate_to_function_by_id,
+    navigate_to_file
   };
 };
 

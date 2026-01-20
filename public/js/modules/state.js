@@ -35,6 +35,8 @@ export const create_state = (ref) => {
   const loading_file_functions = ref(false);
   const file_analytics = ref(null);
   const loading_file_analytics = ref(false);
+  const file_source = ref(null);
+  const loading_file_source = ref(false);
 
   // All functions view state
   const showing_all_functions = ref(false);
@@ -182,6 +184,8 @@ export const create_state = (ref) => {
     loading_file_functions,
     file_analytics,
     loading_file_analytics,
+    file_source,
+    loading_file_source,
 
     // All functions view state
     showing_all_functions,

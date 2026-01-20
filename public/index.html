@@ -26,7 +26,7 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"
     />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <link rel="stylesheet" href="/css/style.css?v=23" />
+    <link rel="stylesheet" href="/css/style.css?v=35" />
   </head>
   <body>
     <div id="app">
@@ -1457,6 +1457,7 @@
                             v-for="fn in analysisDetail.potential_entry_points.slice(0, 20)"
                             :key="fn.id"
                             class="table-row warning-row"
+                            @click="navigateToFunctionById(fn)"
                           >
                             <span class="fn-name">{{ fn.symbol }}</span>
                             <span class="fn-file"
@@ -1622,6 +1623,7 @@
                             v-for="(dep, idx) in analysisDetail.circular_dependencies"
                             :key="idx"
                             class="table-row warning-row"
+                            @click="navigateToFile(dep.file_a)"
                           >
                             <span>{{ dep.file_a }}</span>
                             <span class="circular-arrow">&#8644;</span>
@@ -1639,6 +1641,7 @@
                           v-for="file in analysisDetail.file_metrics.slice(0, 20)"
                           :key="file.filename"
                           class="table-row"
+                          @click="navigateToFile(file.filename)"
                         >
                           <span class="fn-file">{{ file.filename }}</span>
                           <span>{{ file.afferent_coupling }}</span>
@@ -1911,6 +1914,7 @@
                               v-for="(dup, idx) in analysisDetail.smells.duplicate_code_suspects"
                               :key="idx"
                               class="table-row"
+                              @click="navigateToFunction(dup.base_name)"
                             >
                               <span class="fn-name">{{ dup.base_name }}*</span>
                               <span>{{ dup.occurrence_count }}</span>
@@ -2149,6 +2153,7 @@
                           :key="file.filename"
                           class="table-row"
                           :class="{ 'warning-row': file.coverage < 50 }"
+                          @click="navigateToFile(file.filename)"
                         >
                           <span class="fn-file">{{ file.filename }}</span>
                           <span>{{ file.documented }}</span>
@@ -2858,20 +2863,21 @@
                         <div class="analysis-table">
                           <div class="table-header">
                             <span>Pattern</span><span>File</span
-                            ><span>Line</span><span>Context</span>
+                            ><span>Line</span><span>Symbol</span>
                           </div>
                           <div
                             v-for="(loc, idx) in analysisDetail.pattern_locations.slice(0, 20)"
                             :key="idx"
                             class="table-row"
+                            @click="navigateToFunctionById(loc)"
                           >
                             <span class="pattern-type-badge pattern"
-                              >{{ loc.pattern }}</span
+                              >{{ loc.pattern_name }}</span
                             >
                             <span class="fn-file">{{ loc.filename }}</span>
                             <span>{{ loc.line }}</span>
                             <span class="pattern-context"
-                              >{{ loc.context }}</span
+                              >{{ loc.symbol }}</span
                             >
                           </div>
                           <div
@@ -2893,12 +2899,13 @@
                         <div class="analysis-table">
                           <div class="table-header">
                             <span>Anti-Pattern</span><span>File</span
-                            ><span>Line</span><span>Context</span>
+                            ><span>Line</span><span>Symbol</span>
                           </div>
                           <div
                             v-for="(loc, idx) in analysisDetail.anti_patterns.slice(0, 20)"
                             :key="idx"
                             class="table-row warning-row"
+                            @click="navigateToFunctionById(loc)"
                           >
                             <span class="pattern-type-badge anti-pattern"
                               >{{ loc.pattern }}</span
@@ -2906,7 +2913,7 @@
                             <span class="fn-file">{{ loc.filename }}</span>
                             <span>{{ loc.line }}</span>
                             <span class="pattern-context"
-                              >{{ loc.context }}</span
+                              >{{ loc.symbol }}</span
                             >
                           </div>
                           <div
@@ -3029,6 +3036,7 @@
                             v-for="file in analysisDetail.test_files.slice(0, 20)"
                             :key="file.filename"
                             class="table-row"
+                            @click="navigateToFile(file.filename)"
                           >
                             <span class="fn-file">{{ file.filename }}</span>
                             <span>{{ file.assertions }}</span>
@@ -3062,6 +3070,7 @@
                             v-for="gap in analysisDetail.coverage_gaps.slice(0, 15)"
                             :key="gap.filename"
                             class="table-row warning-row"
+                            @click="navigateToFile(gap.filename)"
                           >
                             <span class="fn-file">{{ gap.filename }}</span>
                             <span>{{ gap.message }}</span>
@@ -3158,6 +3167,7 @@
                             v-for="(violation, idx) in analysisDetail.violations.slice(0, 20)"
                             :key="idx"
                             class="table-row warning-row"
+                            @click="navigateToFunctionById(violation)"
                           >
                             <span class="fn-name">{{ violation.symbol }}</span>
                             <span class="fn-file"
@@ -3312,6 +3322,7 @@
                             :key="fn.symbol + fn.filename"
                             class="table-row"
                             :class="{ 'warning-row': fn.score < 50 }"
+                            @click="navigateToFunctionById(fn)"
                           >
                             <span class="fn-name">{{ fn.symbol }}</span>
                             <span class="fn-file">{{ fn.filename }}</span>
@@ -3715,6 +3726,21 @@
                   </div>
                 </div>
                 <div v-else class="empty-state">No entities in this file</div>
+              </div>
+
+              <!-- File Source Code -->
+              <h3>Source Code</h3>
+              <div v-if="loadingFileSource" class="loading">
+                Loading source code...
+              </div>
+              <div v-else-if="fileSource?.source" class="code-block-wrapper">
+                <pre><code
+                  :class="'language-' + getFileLanguage(selectedFile)"
+                  v-html="highlightedFileSource"
+                ></code></pre>
+              </div>
+              <div v-else class="empty-state">
+                Source code not available for this file
               </div>
             </div>
 

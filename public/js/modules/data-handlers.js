@@ -99,22 +99,28 @@ export const create_data_handlers = (state, api, navigation) => {
     state.show_call_graph.value = false;
     state.loading_file_functions.value = true;
     state.loading_file_analytics.value = true;
+    state.loading_file_source.value = true;
     state.file_analytics.value = null;
+    state.file_source.value = null;
 
     try {
-      const [functions_data, analytics_data] = await Promise.all([
+      const [functions_data, analytics_data, source_data] = await Promise.all([
         api.load_file_functions(state.selected_project.value.name, filename),
-        api.load_file_analytics(state.selected_project.value.name, filename)
+        api.load_file_analytics(state.selected_project.value.name, filename),
+        api.load_file_source(state.selected_project.value.name, filename)
       ]);
       state.file_functions.value = functions_data;
       state.file_analytics.value = analytics_data;
+      state.file_source.value = source_data;
     } catch (error) {
       console.error('Failed to load file data:', error);
       state.file_functions.value = [];
       state.file_analytics.value = null;
+      state.file_source.value = null;
     } finally {
       state.loading_file_functions.value = false;
       state.loading_file_analytics.value = false;
+      state.loading_file_source.value = false;
     }
 
     if (!skip_url_update) navigation.update_url();
@@ -127,6 +133,7 @@ export const create_data_handlers = (state, api, navigation) => {
     state.selected_file.value = null;
     state.file_functions.value = [];
     state.file_analytics.value = null;
+    state.file_source.value = null;
     state.selected_function.value = null;
     state.showing_all_functions.value = false;
     navigation.update_url();

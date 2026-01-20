@@ -97,6 +97,25 @@ export const load_file_analytics = async (project_name, filename) => {
 };
 
 /**
+ * Load source code for a file.
+ * @param {string} project_name - Project name
+ * @param {string} filename - Filename to load
+ * @returns {Promise<Object|null>} Source code object or null
+ */
+export const load_file_source = async (project_name, filename) => {
+  try {
+    const response = await fetch(
+      `/api/v1/sourcecode?project=${project_name}&filename=${encodeURIComponent(filename)}`
+    );
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to load file source:', error);
+    return null;
+  }
+};
+
+/**
  * Load all functions for a project.
  * @param {string} project_name - Project name
  * @returns {Promise<Array>} List of all functions
