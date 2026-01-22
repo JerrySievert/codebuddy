@@ -114,6 +114,7 @@ export const create_state = (ref) => {
   const selected_heatmap_node = ref(null);
   const heatmap_depth = ref(3);
   const heatmap_fullscreen = ref(false);
+  const heatmap_view_type = ref('treemap'); // 'treemap' or 'matrix'
 
   // Autocomplete search state
   const search_suggestions = ref([]);
@@ -283,6 +284,7 @@ export const create_state = (ref) => {
     selected_heatmap_node,
     heatmap_depth,
     heatmap_fullscreen,
+    heatmap_view_type,
 
     // Autocomplete search state
     search_suggestions,

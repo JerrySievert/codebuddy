@@ -641,6 +641,19 @@ export const create_heatmap_handlers = (
   };
 
   /**
+   * Set heatmap view type and re-render.
+   * @param {string} view_type - 'treemap' or 'matrix'
+   */
+  const set_heatmap_view_type = (view_type) => {
+    state.heatmap_view_type.value = view_type;
+    nextTick(() => {
+      if (state.heatmap_data.value) {
+        heatmap_renderer.render_heatmap();
+      }
+    });
+  };
+
+  /**
    * Toggle fullscreen for heatmap.
    */
   const toggle_heatmap_fullscreen = () => {
@@ -656,6 +669,7 @@ export const create_heatmap_handlers = (
     load_heatmap,
     recenter_heatmap,
     set_heatmap_depth,
+    set_heatmap_view_type,
     toggle_heatmap_fullscreen
   };
 };

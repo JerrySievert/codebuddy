@@ -1371,7 +1371,7 @@ export const create_tree_renderer = (state, d3) => {
 // ============================================================================
 
 /**
- * Creates a renderer for entity heatmaps using treemap visualization.
+ * Creates a renderer for entity heatmaps using treemap or matrix visualization.
  * Shows function call frequency with rectangle size and color intensity.
  * @param {Object} state - Application state
  * @param {Object} d3 - D3 library
@@ -1406,44 +1406,7 @@ export const create_heatmap_renderer = (state, d3) => {
   /**
    * Render treemap heatmap visualization.
    */
-  const render_heatmap = () => {
-    if (!state.heatmap_data.value || !state.heatmap_svg.value) {
-      console.log('Missing heatmap data or SVG ref');
-      return;
-    }
-
-    const container = state.heatmap_container.value;
-    const width = container.clientWidth || 800;
-    const height = container.clientHeight || 600;
-
-    // Clear previous content
-    d3.select(state.heatmap_svg.value).selectAll('*').remove();
-
-    heatmap_svg_element = d3
-      .select(state.heatmap_svg.value)
-      .attr('width', width)
-      .attr('height', height);
-
-    // Add zoom behavior
-    heatmap_zoom = d3
-      .zoom()
-      .scaleExtent([0.5, 4])
-      .on('zoom', (event) => {
-        heatmap_g.attr('transform', event.transform);
-      });
-
-    heatmap_svg_element.call(heatmap_zoom);
-    heatmap_g = heatmap_svg_element.append('g');
-
-    // Get data
-    const nodes = state.heatmap_data.value.nodes || [];
-    const root_id = state.heatmap_data.value.root;
-
-    if (nodes.length === 0) {
-      console.log('No nodes to render in heatmap');
-      return;
-    }
-
+  const render_treemap = (nodes, root_id, width, height) => {
     // Build hierarchy for treemap
     const hierarchy_data = build_treemap_hierarchy(nodes, root_id);
 
@@ -1512,6 +1475,453 @@ export const create_heatmap_renderer = (state, d3) => {
         const count = d.data.data?.caller_count || 0;
         return `${count} caller${count !== 1 ? 's' : ''}`;
       });
+  };
+
+  /**
+   * Render matrix/grid heatmap visualization.
+   * Shows functions sorted by caller count in a grid layout.
+   */
+  const render_matrix = (nodes, root_id, width, height) => {
+    // Sort nodes by caller count (descending), excluding root
+    const root_node = nodes.find((n) => n.id === root_id);
+    const sorted_nodes = nodes
+      .filter((n) => n.id !== root_id)
+      .sort((a, b) => (b.caller_count || 0) - (a.caller_count || 0));
+
+    // Add root at the beginning
+    if (root_node) {
+      sorted_nodes.unshift(root_node);
+    }
+
+    const num_nodes = sorted_nodes.length;
+    if (num_nodes === 0) return;
+
+    // Calculate grid dimensions - aim for roughly square aspect ratio
+    const aspect = width / height;
+    let cols = Math.ceil(Math.sqrt(num_nodes * aspect));
+    let rows = Math.ceil(num_nodes / cols);
+
+    // Ensure we have enough cells
+    while (cols * rows < num_nodes) {
+      cols++;
+    }
+
+    // Calculate cell size with padding
+    const padding = 4;
+    const label_height = 40; // Space for labels at bottom
+    const cell_width = (width - padding * (cols + 1)) / cols;
+    const cell_height = (height - label_height - padding * (rows + 1)) / rows;
+    const cell_size = Math.min(cell_width, cell_height, 80); // Cap max size
+
+    // Recalculate to center the grid
+    const actual_width = cols * (cell_size + padding) + padding;
+    const actual_height = rows * (cell_size + padding) + padding;
+    const offset_x = (width - actual_width) / 2;
+    const offset_y = (height - label_height - actual_height) / 2;
+
+    // Create cells
+    sorted_nodes.forEach((node, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = offset_x + padding + col * (cell_size + padding);
+      const y = offset_y + padding + row * (cell_size + padding);
+
+      const cell = heatmap_g
+        .append('g')
+        .attr('class', 'matrix-cell')
+        .attr('transform', `translate(${x},${y})`)
+        .style('cursor', 'pointer')
+        .on('click', (event) => {
+          event.stopPropagation();
+          state.selected_heatmap_node.value = node;
+          heatmap_g.selectAll('.matrix-cell rect').attr('stroke-width', 1);
+          d3.select(event.currentTarget).select('rect').attr('stroke-width', 3);
+        });
+
+      // Cell rectangle
+      cell
+        .append('rect')
+        .attr('width', cell_size)
+        .attr('height', cell_size)
+        .attr('rx', 4)
+        .attr('ry', 4)
+        .attr('fill', get_heat_fill(node.heat || 0))
+        .attr('stroke', get_heat_stroke(node.heat || 0))
+        .attr('stroke-width', node.id === root_id ? 2 : 1);
+
+      // Caller count in center
+      const caller_count = node.caller_count || 0;
+      cell
+        .append('text')
+        .attr('x', cell_size / 2)
+        .attr('y', cell_size / 2)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', cell_size > 40 ? '14px' : '11px')
+        .attr('font-weight', 'bold')
+        .attr('fill', node.heat > 0.5 ? '#fff' : '#333')
+        .text(caller_count);
+
+      // Function name below cell (if space allows)
+      if (cell_size >= 30) {
+        const max_chars = Math.floor(cell_size / 6);
+        cell
+          .append('text')
+          .attr('x', cell_size / 2)
+          .attr('y', cell_size + 12)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', '9px')
+          .attr('fill', '#666')
+          .text(truncate_string(node.symbol, max_chars))
+          .append('title')
+          .text(`${node.symbol} (${caller_count} callers)`);
+      }
+
+      // Tooltip on hover
+      cell.append('title').text(`${node.symbol}\n${caller_count} callers`);
+    });
+
+    // Add legend at bottom
+    const legend_y = height - label_height + 10;
+    const legend_g = heatmap_g
+      .append('g')
+      .attr('transform', `translate(${width / 2 - 100}, ${legend_y})`);
+
+    legend_g
+      .append('text')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('font-size', '10px')
+      .attr('fill', '#666')
+      .text('Sorted by caller count (highest first). Color = heat intensity.');
+  };
+
+  /**
+   * Build a proper hierarchy from nodes and edges for hierarchical views.
+   * Creates a tree structure following the call graph edges.
+   */
+  const build_hierarchy_from_edges = (nodes, edges, root_id) => {
+    const node_map = new Map();
+    nodes.forEach((n) => node_map.set(n.id, { ...n, children: [] }));
+
+    // Build adjacency list from edges (from -> to means from calls to)
+    const children_map = new Map();
+    edges.forEach((e) => {
+      if (!children_map.has(e.from)) {
+        children_map.set(e.from, []);
+      }
+      children_map.get(e.from).push(e.to);
+    });
+
+    // Recursively build tree starting from root
+    const visited = new Set();
+    const build_tree = (node_id, depth = 0) => {
+      if (visited.has(node_id) || depth > 10) {
+        // Prevent cycles and limit depth
+        const node = node_map.get(node_id);
+        return node
+          ? {
+              name: node.symbol,
+              value: Math.max(1, (node.caller_count || 0) + 1),
+              data: node,
+              is_cycle: true
+            }
+          : null;
+      }
+
+      visited.add(node_id);
+      const node = node_map.get(node_id);
+      if (!node) return null;
+
+      const child_ids = children_map.get(node_id) || [];
+      const children = child_ids
+        .map((id) => build_tree(id, depth + 1))
+        .filter((c) => c !== null);
+
+      return {
+        name: node.symbol,
+        value: Math.max(1, (node.caller_count || 0) + 1),
+        data: node,
+        children: children.length > 0 ? children : undefined
+      };
+    };
+
+    const hierarchy = build_tree(root_id);
+    return hierarchy || { name: 'root', value: 1, children: [] };
+  };
+
+  /**
+   * Render hierarchical treemap visualization.
+   * Shows nested rectangles following the actual call hierarchy.
+   */
+  const render_hierarchical = (nodes, edges, root_id, width, height) => {
+    // Build proper hierarchy from edges
+    const hierarchy_data = build_hierarchy_from_edges(nodes, edges, root_id);
+
+    // Create treemap layout with nesting
+    const treemap = d3
+      .treemap()
+      .size([width, height])
+      .paddingOuter(3)
+      .paddingTop(19)
+      .paddingInner(2)
+      .round(true);
+
+    // Create hierarchy and compute values
+    const root = d3
+      .hierarchy(hierarchy_data)
+      .sum((d) => (d.children ? 0 : d.value))
+      .sort((a, b) => b.value - a.value);
+
+    // Apply treemap layout
+    treemap(root);
+
+    // Draw cells - including parent containers
+    const cell = heatmap_g
+      .selectAll('g')
+      .data(root.descendants())
+      .join('g')
+      .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
+      .attr('class', (d) => (d.children ? 'treemap-parent' : 'treemap-leaf'))
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        state.selected_heatmap_node.value = d.data.data;
+        heatmap_g.selectAll('rect').attr('stroke-width', 1);
+        d3.select(event.currentTarget).select('rect').attr('stroke-width', 3);
+      });
+
+    // Cell rectangles
+    cell
+      .append('rect')
+      .attr('width', (d) => Math.max(0, d.x1 - d.x0))
+      .attr('height', (d) => Math.max(0, d.y1 - d.y0))
+      .attr('fill', (d) => {
+        if (d.children) {
+          // Parent nodes get a light fill based on depth
+          const depth_colors = [
+            '#f5f5f5',
+            '#eeeeee',
+            '#e0e0e0',
+            '#bdbdbd',
+            '#9e9e9e'
+          ];
+          return depth_colors[Math.min(d.depth, depth_colors.length - 1)];
+        }
+        return get_heat_fill(d.data.data?.heat || 0);
+      })
+      .attr('stroke', (d) => {
+        if (d.children) return '#999';
+        return get_heat_stroke(d.data.data?.heat || 0);
+      })
+      .attr('stroke-width', 1);
+
+    // Parent labels at top
+    cell
+      .filter((d) => d.children)
+      .append('text')
+      .attr('x', 3)
+      .attr('y', 13)
+      .attr('font-size', '11px')
+      .attr('font-weight', 'bold')
+      .attr('fill', '#333')
+      .text((d) => {
+        const cell_width = d.x1 - d.x0;
+        if (cell_width < 30) return '';
+        const max_chars = Math.floor(cell_width / 7);
+        return truncate_string(d.data.name, max_chars);
+      });
+
+    // Leaf labels
+    cell
+      .filter((d) => !d.children)
+      .append('text')
+      .attr('x', 4)
+      .attr('y', 14)
+      .attr('font-size', '10px')
+      .attr('fill', '#333')
+      .text((d) => {
+        const cell_width = d.x1 - d.x0;
+        const cell_height = d.y1 - d.y0;
+        if (cell_width < 35 || cell_height < 18) return '';
+        const max_chars = Math.floor(cell_width / 6);
+        return truncate_string(d.data.name, max_chars);
+      });
+
+    // Caller count for leaves
+    cell
+      .filter((d) => !d.children)
+      .append('text')
+      .attr('x', 4)
+      .attr('y', 26)
+      .attr('font-size', '9px')
+      .attr('fill', '#666')
+      .text((d) => {
+        const cell_width = d.x1 - d.x0;
+        const cell_height = d.y1 - d.y0;
+        if (cell_width < 35 || cell_height < 32) return '';
+        const count = d.data.data?.caller_count || 0;
+        return `${count}`;
+      });
+
+    // Tooltips
+    cell.append('title').text((d) => {
+      const count = d.data.data?.caller_count || 0;
+      return `${d.data.name}\n${count} callers`;
+    });
+  };
+
+  /**
+   * Render sunburst visualization.
+   * Shows radial hierarchy with arc segments.
+   */
+  const render_sunburst = (nodes, edges, root_id, width, height) => {
+    // Build proper hierarchy from edges
+    const hierarchy_data = build_hierarchy_from_edges(nodes, edges, root_id);
+
+    const radius = Math.min(width, height) / 2 - 10;
+
+    // Create partition layout for sunburst
+    const partition = d3.partition().size([2 * Math.PI, radius]);
+
+    // Create hierarchy and compute values
+    const root = d3
+      .hierarchy(hierarchy_data)
+      .sum((d) => (d.children ? 0 : d.value))
+      .sort((a, b) => b.value - a.value);
+
+    // Apply partition layout
+    partition(root);
+
+    // Create arc generator
+    const arc = d3
+      .arc()
+      .startAngle((d) => d.x0)
+      .endAngle((d) => d.x1)
+      .padAngle((d) => Math.min((d.x1 - d.x0) / 2, 0.005))
+      .padRadius(radius / 2)
+      .innerRadius((d) => d.y0)
+      .outerRadius((d) => d.y1 - 1);
+
+    // Center the sunburst
+    const sunburst_g = heatmap_g
+      .append('g')
+      .attr('transform', `translate(${width / 2},${height / 2})`);
+
+    // Draw arcs
+    sunburst_g
+      .selectAll('path')
+      .data(root.descendants().filter((d) => d.depth))
+      .join('path')
+      .attr('d', arc)
+      .attr('fill', (d) => get_heat_fill(d.data.data?.heat || 0))
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1)
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        state.selected_heatmap_node.value = d.data.data;
+        sunburst_g.selectAll('path').attr('stroke-width', 1);
+        d3.select(event.currentTarget).attr('stroke-width', 3);
+      })
+      .append('title')
+      .text((d) => {
+        const count = d.data.data?.caller_count || 0;
+        return `${d.data.name}\n${count} callers`;
+      });
+
+    // Add labels for segments that are large enough
+    sunburst_g
+      .selectAll('text')
+      .data(
+        root.descendants().filter((d) => {
+          const angle = d.x1 - d.x0;
+          const r = (d.y0 + d.y1) / 2;
+          return d.depth && angle * r > 20; // Only show if arc is long enough
+        })
+      )
+      .join('text')
+      .attr('transform', (d) => {
+        const x = ((d.x0 + d.x1) / 2) * (180 / Math.PI);
+        const y = (d.y0 + d.y1) / 2;
+        return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+      })
+      .attr('dy', '0.35em')
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '9px')
+      .attr('fill', (d) => (d.data.data?.heat > 0.5 ? '#fff' : '#333'))
+      .text((d) => {
+        const r = (d.y0 + d.y1) / 2;
+        const angle = d.x1 - d.x0;
+        const arc_length = angle * r;
+        const max_chars = Math.floor(arc_length / 6);
+        return truncate_string(d.data.name, Math.max(3, max_chars));
+      });
+
+    // Add center label
+    sunburst_g
+      .append('text')
+      .attr('text-anchor', 'middle')
+      .attr('dy', '0.35em')
+      .attr('font-size', '12px')
+      .attr('font-weight', 'bold')
+      .text(truncate_string(hierarchy_data.name, 15));
+  };
+
+  /**
+   * Main render function - dispatches to appropriate visualization.
+   */
+  const render_heatmap = () => {
+    if (!state.heatmap_data.value || !state.heatmap_svg.value) {
+      console.log('Missing heatmap data or SVG ref');
+      return;
+    }
+
+    const container = state.heatmap_container.value;
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 600;
+
+    // Clear previous content
+    d3.select(state.heatmap_svg.value).selectAll('*').remove();
+
+    heatmap_svg_element = d3
+      .select(state.heatmap_svg.value)
+      .attr('width', width)
+      .attr('height', height);
+
+    // Add zoom behavior
+    heatmap_zoom = d3
+      .zoom()
+      .scaleExtent([0.5, 4])
+      .on('zoom', (event) => {
+        heatmap_g.attr('transform', event.transform);
+      });
+
+    heatmap_svg_element.call(heatmap_zoom);
+    heatmap_g = heatmap_svg_element.append('g');
+
+    // Get data
+    const nodes = state.heatmap_data.value.nodes || [];
+    const edges = state.heatmap_data.value.edges || [];
+    const root_id = state.heatmap_data.value.root;
+
+    if (nodes.length === 0) {
+      console.log('No nodes to render in heatmap');
+      return;
+    }
+
+    // Check view type and render appropriate visualization
+    const view_type = state.heatmap_view_type.value;
+    if (view_type === 'matrix') {
+      render_matrix(nodes, root_id, width, height);
+    } else if (view_type === 'hierarchical') {
+      render_hierarchical(nodes, edges, root_id, width, height);
+    } else if (view_type === 'sunburst') {
+      render_sunburst(nodes, edges, root_id, width, height);
+    } else {
+      // Default to treemap
+      render_treemap(nodes, root_id, width, height);
+    }
 
     // Click on background to deselect
     heatmap_svg_element.on('click', () => {

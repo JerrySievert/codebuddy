@@ -4378,25 +4378,47 @@
               </div>
 
               <div v-if="activeTab === 'heatmap'">
-                <!-- Depth Selector -->
-                <div class="depth-selector" style="margin-bottom: 12px">
-                  <label>Depth:</label>
-                  <select
-                    :value="heatmapDepth"
-                    @change="setHeatmapDepth(parseInt($event.target.value))"
-                  >
-                    <option :value="1">1</option>
-                    <option :value="2">2</option>
-                    <option :value="3">3</option>
-                    <option :value="4">4</option>
-                    <option :value="5">5</option>
-                    <option :value="6">6</option>
-                    <option :value="7">7</option>
-                    <option :value="8">8</option>
-                    <option :value="9">9</option>
-                    <option :value="10">10</option>
-                    <option :value="0">Unlimited</option>
-                  </select>
+                <!-- Heatmap Controls -->
+                <div
+                  class="heatmap-options"
+                  style="
+                    margin-bottom: 12px;
+                    display: flex;
+                    gap: 16px;
+                    align-items: center;
+                  "
+                >
+                  <div>
+                    <label>View:</label>
+                    <select
+                      :value="heatmapViewType"
+                      @change="setHeatmapViewType($event.target.value)"
+                    >
+                      <option value="treemap">Treemap</option>
+                      <option value="matrix">Matrix</option>
+                      <option value="hierarchical">Hierarchical</option>
+                      <option value="sunburst">Sunburst</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Depth:</label>
+                    <select
+                      :value="heatmapDepth"
+                      @change="setHeatmapDepth(parseInt($event.target.value))"
+                    >
+                      <option :value="1">1</option>
+                      <option :value="2">2</option>
+                      <option :value="3">3</option>
+                      <option :value="4">4</option>
+                      <option :value="5">5</option>
+                      <option :value="6">6</option>
+                      <option :value="7">7</option>
+                      <option :value="8">8</option>
+                      <option :value="9">9</option>
+                      <option :value="10">10</option>
+                      <option :value="0">Unlimited</option>
+                    </select>
+                  </div>
                 </div>
                 <div v-if="loadingHeatmap" class="loading">
                   Loading heatmap...
