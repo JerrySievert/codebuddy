@@ -421,3 +421,125 @@ export const create_inline_graph_handlers = (
     toggle_inline_graph_fullscreen
   };
 };
+
+/**
+ * Creates reverse call graph handlers (callers only).
+ * @param {Object} state - Application state
+ * @param {Object} api - API module
+ * @param {Object} reverse_graph_renderer - Reverse graph renderer
+ * @param {Function} nextTick - Vue nextTick function
+ * @returns {Object} Reverse call graph functions
+ */
+export const create_reverse_graph_handlers = (
+  state,
+  api,
+  reverse_graph_renderer,
+  nextTick
+) => {
+  /**
+   * Load reverse call graph for function detail tab.
+   */
+  const load_reverse_call_graph = async () => {
+    if (!state.selected_function.value) return;
+
+    // Always reload with current depth setting
+    state.loading_reverse_call_graph.value = true;
+    state.reverse_call_graph_error.value = '';
+    state.selected_reverse_graph_node.value = null;
+
+    try {
+      const data = await api.load_reverse_call_graph(
+        state.selected_function.value.symbol,
+        state.selected_project.value.name,
+        state.reverse_call_graph_depth.value
+      );
+
+      if (data.error) {
+        state.reverse_call_graph_error.value = data.error;
+        return;
+      }
+
+      state.reverse_call_graph_data.value = data;
+    } catch (error) {
+      console.error('Failed to load reverse call graph:', error);
+      state.reverse_call_graph_error.value =
+        'Failed to load reverse call graph';
+    } finally {
+      state.loading_reverse_call_graph.value = false;
+      await nextTick();
+      setTimeout(() => {
+        reverse_graph_renderer.render_reverse_call_graph();
+      }, 50);
+    }
+  };
+
+  /**
+   * Recenter reverse call graph on a different function.
+   * @param {string} symbol - Function symbol
+   */
+  const recenter_reverse_graph = async (symbol) => {
+    state.loading_reverse_call_graph.value = true;
+    state.reverse_call_graph_error.value = '';
+    state.selected_reverse_graph_node.value = null;
+
+    try {
+      const data = await api.load_reverse_call_graph(
+        symbol,
+        state.selected_project.value.name,
+        state.reverse_call_graph_depth.value
+      );
+
+      if (data.error) {
+        state.reverse_call_graph_error.value = data.error;
+        return;
+      }
+
+      state.reverse_call_graph_data.value = data;
+    } catch (error) {
+      console.error('Failed to recenter reverse call graph:', error);
+      state.reverse_call_graph_error.value =
+        'Failed to load reverse call graph';
+    } finally {
+      state.loading_reverse_call_graph.value = false;
+      await nextTick();
+      setTimeout(() => {
+        reverse_graph_renderer.render_reverse_call_graph();
+      }, 50);
+    }
+  };
+
+  /**
+   * Set reverse call graph depth and reload.
+   * @param {number} new_depth - New depth value
+   */
+  const set_reverse_call_graph_depth = async (new_depth) => {
+    state.reverse_call_graph_depth.value = new_depth;
+
+    if (
+      state.active_tab.value === 'reversegraph' &&
+      state.selected_function.value
+    ) {
+      await load_reverse_call_graph();
+    }
+  };
+
+  /**
+   * Toggle fullscreen for reverse call graph.
+   */
+  const toggle_reverse_graph_fullscreen = () => {
+    state.reverse_graph_fullscreen.value =
+      !state.reverse_graph_fullscreen.value;
+    nextTick(() => {
+      if (state.reverse_call_graph_data.value) {
+        reverse_graph_renderer.render_reverse_call_graph();
+      }
+    });
+  };
+
+  return {
+    load_reverse_call_graph,
+    recenter_reverse_graph,
+    set_reverse_call_graph_depth,
+    toggle_reverse_graph_fullscreen
+  };
+};

@@ -9,6 +9,7 @@ import {
   create_flowchart_renderer,
   create_call_graph_renderer,
   create_inline_graph_renderer,
+  create_reverse_graph_renderer,
   create_tree_renderer
 } from './modules/rendering.js';
 import {
@@ -30,7 +31,8 @@ import {
 import {
   create_call_graph_handlers,
   create_flowchart_handlers,
-  create_inline_graph_handlers
+  create_inline_graph_handlers,
+  create_reverse_graph_handlers
 } from './modules/graph-handlers.js';
 import {
   create_function_handlers,
@@ -51,6 +53,7 @@ createApp({
     const flowchart_renderer = create_flowchart_renderer(state, d3);
     const call_graph_renderer = create_call_graph_renderer(state, d3);
     const inline_graph_renderer = create_inline_graph_renderer(state, d3);
+    const reverse_graph_renderer = create_reverse_graph_renderer(state, d3);
     const tree_renderer = create_tree_renderer(state, d3);
 
     // Placeholder navigation for circular dependency resolution
@@ -99,13 +102,21 @@ createApp({
       nextTick
     );
 
+    const reverse_graph_handlers = create_reverse_graph_handlers(
+      state,
+      api,
+      reverse_graph_renderer,
+      nextTick
+    );
+
     // Create callers/callees handlers
     const callers_callees_handlers = create_callers_callees_handlers(
       state,
       api,
       { update_url: () => navigation?.update_url() },
       inline_graph_handlers,
-      flowchart_handlers
+      flowchart_handlers,
+      reverse_graph_handlers
     );
 
     // Create navigation handlers object for navigation module
@@ -119,6 +130,7 @@ createApp({
       load_callers: callers_callees_handlers.load_callers,
       load_callees: callers_callees_handlers.load_callees,
       load_inline_call_graph: inline_graph_handlers.load_inline_call_graph,
+      load_reverse_call_graph: reverse_graph_handlers.load_reverse_call_graph,
       load_flowchart: flowchart_handlers.load_flowchart,
       load_references: callers_callees_handlers.load_references,
       open_call_graph: call_graph_handlers.open_call_graph,
@@ -526,6 +538,14 @@ createApp({
       inlineGraphFullscreen: state.inline_graph_fullscreen,
       flowchartFullscreen: state.flowchart_fullscreen,
       callGraphFullscreen: state.call_graph_fullscreen,
+      reverseCallGraphData: state.reverse_call_graph_data,
+      loadingReverseCallGraph: state.loading_reverse_call_graph,
+      reverseCallGraphError: state.reverse_call_graph_error,
+      reverseGraphContainer: state.reverse_graph_container,
+      reverseGraphSvg: state.reverse_graph_svg,
+      selectedReverseGraphNode: state.selected_reverse_graph_node,
+      reverseCallGraphDepth: state.reverse_call_graph_depth,
+      reverseGraphFullscreen: state.reverse_graph_fullscreen,
       currentDirectory: state.current_directory,
       serverReadOnly: state.server_read_only,
       showReadOnlyModal: state.show_read_only_modal,
@@ -619,6 +639,15 @@ createApp({
       toggleFlowchartFullscreen: flowchart_handlers.toggle_flowchart_fullscreen,
       toggleCallGraphFullscreen:
         call_graph_handlers.toggle_call_graph_fullscreen,
+      loadReverseCallGraph: reverse_graph_handlers.load_reverse_call_graph,
+      recenterReverseGraph: reverse_graph_handlers.recenter_reverse_graph,
+      setReverseCallGraphDepth:
+        reverse_graph_handlers.set_reverse_call_graph_depth,
+      toggleReverseGraphFullscreen:
+        reverse_graph_handlers.toggle_reverse_graph_fullscreen,
+      reverseGraphZoomIn: reverse_graph_renderer.zoom_in,
+      reverseGraphZoomOut: reverse_graph_renderer.zoom_out,
+      reverseGraphResetZoom: reverse_graph_renderer.reset_zoom,
       viewFunctionDetails: view_function_details,
       onSearchInput: search_handlers.on_search_input,
       navigateAutocomplete: search_handlers.navigate_autocomplete,

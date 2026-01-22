@@ -3982,6 +3982,13 @@
                 </div>
                 <div
                   class="tab"
+                  :class="{ active: activeTab === 'reversegraph' }"
+                  @click="setActiveTab('reversegraph')"
+                >
+                  Reverse Graph
+                </div>
+                <div
+                  class="tab"
                   :class="{ active: activeTab === 'flowchart' }"
                   @click="setActiveTab('flowchart')"
                 >
@@ -4143,6 +4150,119 @@
                 </div>
                 <div v-else class="empty-state">
                   No call graph data available
+                </div>
+              </div>
+
+              <div v-if="activeTab === 'reversegraph'">
+                <!-- Depth Selector -->
+                <div class="depth-selector" style="margin-bottom: 12px">
+                  <label>Depth:</label>
+                  <select
+                    :value="reverseCallGraphDepth"
+                    @change="setReverseCallGraphDepth(parseInt($event.target.value))"
+                  >
+                    <option :value="1">1</option>
+                    <option :value="2">2</option>
+                    <option :value="3">3</option>
+                    <option :value="4">4</option>
+                    <option :value="5">5</option>
+                    <option :value="6">6</option>
+                    <option :value="7">7</option>
+                    <option :value="8">8</option>
+                    <option :value="9">9</option>
+                    <option :value="10">10</option>
+                    <option :value="0">Unlimited</option>
+                  </select>
+                  <span style="margin-left: 12px; color: #666; font-size: 13px">
+                    Shows all functions that could call this function
+                  </span>
+                </div>
+                <div v-if="loadingReverseCallGraph" class="loading">
+                  Loading reverse call graph...
+                </div>
+                <div v-else-if="reverseCallGraphError" class="empty-state">
+                  {{ reverseCallGraphError }}
+                </div>
+                <div
+                  v-else-if="reverseCallGraphData"
+                  class="graph-container"
+                  :class="{ 'fullscreen': reverseGraphFullscreen }"
+                  ref="reverseGraphContainer"
+                >
+                  <div class="graph-controls">
+                    <button @click="reverseGraphZoomIn">Zoom In</button>
+                    <button @click="reverseGraphZoomOut">Zoom Out</button>
+                    <button @click="reverseGraphResetZoom">Reset</button>
+                    <button
+                      class="fullscreen-btn"
+                      @click="toggleReverseGraphFullscreen"
+                    >
+                      {{ reverseGraphFullscreen ? '✕ Close' : '⛶ Fullscreen' }}
+                    </button>
+                  </div>
+                  <svg class="graph-svg" ref="reverseGraphSvg"></svg>
+                  <div v-if="selectedReverseGraphNode" class="node-info-panel">
+                    <div class="node-info-header">
+                      {{ selectedReverseGraphNode.symbol }}{{
+                      selectedReverseGraphNode.parameters || '' }}
+                    </div>
+                    <div class="node-info-body">
+                      <div class="node-info-row">
+                        <div class="node-info-label">Location</div>
+                        <div class="node-info-value">
+                          {{ selectedReverseGraphNode.filename }}:{{
+                          selectedReverseGraphNode.start_line }}
+                        </div>
+                      </div>
+                      <div
+                        v-if="selectedReverseGraphNode.return_type"
+                        class="node-info-row"
+                      >
+                        <div class="node-info-label">Return Type</div>
+                        <div class="node-info-value">
+                          {{ selectedReverseGraphNode.return_type }}
+                        </div>
+                      </div>
+                      <div style="margin-top: 12px">
+                        <button
+                          class="btn-primary"
+                          @click="selectFunction(selectedReverseGraphNode)"
+                        >
+                          View Details
+                        </button>
+                        <button
+                          class="btn-secondary"
+                          @click="recenterReverseGraph(selectedReverseGraphNode.symbol)"
+                        >
+                          Recenter Graph
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="graph-legend">
+                    <div class="legend-item">
+                      <div
+                        class="legend-circle"
+                        style="background: #fce4ec; border-color: #e91e63"
+                      ></div>
+                      <span>Root (this function)</span>
+                    </div>
+                    <div class="legend-item">
+                      <div
+                        class="legend-circle"
+                        style="background: #e8f5e9; border-color: #4caf50"
+                      ></div>
+                      <span>Callers</span>
+                    </div>
+                    <div class="legend-item">
+                      <span style="color: #999"
+                        >→ Arrow shows call direction (caller → callee)</span
+                      >
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="empty-state">
+                  No reverse call graph data available
                 </div>
               </div>
 

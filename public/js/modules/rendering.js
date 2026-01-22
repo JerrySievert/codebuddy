@@ -492,15 +492,16 @@ const create_arrow_marker = (svg, id, fill_class = 'graph-arrow') => {
     .append('defs')
     .append('marker')
     .attr('id', id)
-    .attr('viewBox', '-0 -5 10 10')
-    .attr('refX', 20)
+    .attr('viewBox', '0 -5 10 10')
+    .attr('refX', 25)
     .attr('refY', 0)
     .attr('orient', 'auto')
-    .attr('markerWidth', 6)
-    .attr('markerHeight', 6)
+    .attr('markerWidth', 8)
+    .attr('markerHeight', 8)
+    .attr('markerUnits', 'strokeWidth')
     .append('path')
     .attr('d', 'M 0,-5 L 10,0 L 0,5')
-    .attr('class', fill_class);
+    .attr('fill', '#666');
 };
 
 /**
@@ -969,6 +970,237 @@ export const create_inline_graph_renderer = (state, d3) => {
     reset_zoom,
     stop_simulation
   };
+};
+
+// ============================================================================
+// Reverse Call Graph Renderer (Callers Only)
+// ============================================================================
+
+/**
+ * Creates a renderer for reverse call graphs (callers only, function detail tab).
+ * @param {Object} state - Application state
+ * @param {Object} d3 - D3 library
+ * @returns {Object} Reverse call graph renderer functions
+ */
+export const create_reverse_graph_renderer = (state, d3) => {
+  let reverse_simulation = null;
+  let reverse_graph_svg_element = null;
+  let reverse_graph_g = null;
+  let reverse_graph_zoom = null;
+
+  /**
+   * Render reverse call graph (callers only).
+   */
+  const render_reverse_call_graph = () => {
+    if (
+      !state.reverse_call_graph_data.value ||
+      !state.reverse_graph_svg.value
+    ) {
+      return;
+    }
+
+    const container = state.reverse_graph_container.value;
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 600;
+
+    // Stop any running simulation before clearing
+    if (reverse_simulation) {
+      reverse_simulation.stop();
+      reverse_simulation = null;
+    }
+
+    // Clear previous graph
+    d3.select(state.reverse_graph_svg.value).selectAll('*').remove();
+
+    reverse_graph_svg_element = d3.select(state.reverse_graph_svg.value);
+
+    // Add zoom behavior
+    reverse_graph_zoom = d3
+      .zoom()
+      .scaleExtent([0.1, 4])
+      .on('zoom', (event) => {
+        reverse_graph_g.attr('transform', event.transform);
+      });
+
+    reverse_graph_svg_element.call(reverse_graph_zoom);
+    reverse_graph_g = reverse_graph_svg_element.append('g');
+
+    // Define arrow marker
+    create_arrow_marker(reverse_graph_svg_element, 'reverse-arrow');
+
+    // Get data (already filtered by depth on server)
+    const nodes = state.reverse_call_graph_data.value.nodes || [];
+    const edges = state.reverse_call_graph_data.value.edges || [];
+    const root_id = state.reverse_call_graph_data.value.root;
+
+    // Calculate depth for each node using BFS from root (following reverse edges)
+    const node_depths = calculate_caller_depths(nodes, edges, root_id);
+
+    // Store depth on nodes for color-coding
+    nodes.forEach((n) => {
+      n.depth = node_depths.get(n.id) || 0;
+    });
+
+    // Create links
+    const links = edges
+      .map((e) => ({
+        source: nodes.find((n) => n.id === e.from),
+        target: nodes.find((n) => n.id === e.to),
+        line: e.line
+      }))
+      .filter((l) => l.source && l.target);
+
+    // Create force-directed simulation
+    reverse_simulation = create_force_simulation(
+      d3,
+      nodes,
+      links,
+      width,
+      height,
+      {
+        link_distance: 100,
+        charge_strength: -300,
+        collision_radius: 40
+      }
+    );
+
+    // Draw links with unique marker reference
+    const link = draw_graph_links(reverse_graph_g, links, 'reverse-arrow');
+
+    // Draw nodes - root is pink, callers are green
+    const drag_behavior = create_drag_behavior(d3, reverse_simulation);
+    const node = draw_reverse_graph_nodes(
+      reverse_graph_g,
+      nodes,
+      root_id,
+      drag_behavior,
+      (event, d) => {
+        event.stopPropagation();
+        state.selected_reverse_graph_node.value = d;
+        reverse_graph_g
+          .selectAll('.graph-node')
+          .classed('selected', (n) => n.id === d.id);
+        link.classed(
+          'highlighted',
+          (l) => l.source.id === d.id || l.target.id === d.id
+        );
+      }
+    );
+
+    // Setup tick handler
+    setup_simulation_tick(reverse_simulation, link, node);
+
+    // Click on background to deselect
+    reverse_graph_svg_element.on('click', () => {
+      state.selected_reverse_graph_node.value = null;
+      reverse_graph_g.selectAll('.graph-node').classed('selected', false);
+      link.classed('highlighted', false);
+    });
+  };
+
+  const zoom_in = () => {
+    if (reverse_graph_svg_element && reverse_graph_zoom) {
+      reverse_graph_svg_element
+        .transition()
+        .call(reverse_graph_zoom.scaleBy, 1.3);
+    }
+  };
+
+  const zoom_out = () => {
+    if (reverse_graph_svg_element && reverse_graph_zoom) {
+      reverse_graph_svg_element
+        .transition()
+        .call(reverse_graph_zoom.scaleBy, 0.7);
+    }
+  };
+
+  const reset_zoom = () => {
+    if (reverse_graph_svg_element && reverse_graph_zoom) {
+      reverse_graph_svg_element
+        .transition()
+        .call(reverse_graph_zoom.transform, d3.zoomIdentity);
+    }
+  };
+
+  const stop_simulation = () => {
+    if (reverse_simulation) {
+      reverse_simulation.stop();
+      reverse_simulation = null;
+    }
+  };
+
+  return {
+    render_reverse_call_graph,
+    zoom_in,
+    zoom_out,
+    reset_zoom,
+    stop_simulation
+  };
+};
+
+/**
+ * Calculate depth for each node in reverse graph (from root following caller edges).
+ * @param {Array} nodes - Graph nodes
+ * @param {Array} edges - Graph edges
+ * @param {number} root_id - Root node ID
+ * @returns {Map} Map of node ID to depth
+ */
+const calculate_caller_depths = (nodes, edges, root_id) => {
+  const depths = new Map();
+  depths.set(root_id, 0);
+
+  // BFS from root following edges where target is current node (callers point TO their callees)
+  const queue = [root_id];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const current_depth = depths.get(current);
+
+    // Find edges where this node is the target (callers of this node)
+    for (const edge of edges) {
+      if (edge.to === current && !depths.has(edge.from)) {
+        depths.set(edge.from, current_depth + 1);
+        queue.push(edge.from);
+      }
+    }
+  }
+
+  return depths;
+};
+
+/**
+ * Draw nodes for reverse call graph (simpler coloring - root is pink, callers are green).
+ */
+const draw_reverse_graph_nodes = (
+  g,
+  nodes,
+  root_id,
+  drag_behavior,
+  on_click
+) => {
+  const node = g
+    .append('g')
+    .selectAll('g')
+    .data(nodes)
+    .join('g')
+    .attr('class', (d) => `graph-node ${d.id === root_id ? 'root' : 'caller'}`)
+    .call(drag_behavior)
+    .on('click', on_click);
+
+  node
+    .append('circle')
+    .attr('r', (d) => (d.id === root_id ? 18 : 14))
+    .attr('fill', (d) => (d.id === root_id ? '#fce4ec' : '#e8f5e9'))
+    .attr('stroke', (d) => (d.id === root_id ? '#e91e63' : '#4caf50'))
+    .attr('stroke-width', 2);
+
+  node
+    .append('text')
+    .attr('text-anchor', 'middle')
+    .attr('dy', 30)
+    .attr('font-size', '11px')
+    .text((d) => truncate_string(d.symbol, 20));
+
+  return node;
 };
 
 // ============================================================================

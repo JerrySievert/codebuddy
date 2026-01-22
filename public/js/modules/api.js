@@ -291,6 +291,36 @@ export const load_call_graph = async (symbol, project_name, depth = 0) => {
 };
 
 /**
+ * Load reverse call graph for a function (callers only).
+ * @param {string} symbol - Function symbol
+ * @param {string} project_name - Project name
+ * @param {number} depth - Graph depth (0 = unlimited)
+ * @returns {Promise<Object>} Reverse call graph data
+ */
+export const load_reverse_call_graph = async (
+  symbol,
+  project_name,
+  depth = 5
+) => {
+  try {
+    const response = await fetch(
+      `/api/v1/functions/${encodeURIComponent(symbol)}/reverse-callgraph?project=${project_name}&depth=${depth}`
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      return {
+        error: data.error || 'Failed to load reverse call graph',
+        not_found: response.status === 404
+      };
+    }
+    return data;
+  } catch (error) {
+    console.error('Failed to load reverse call graph:', error);
+    return { error: error.message };
+  }
+};
+
+/**
  * Load caller or callee tree.
  * @param {string} symbol - Function symbol
  * @param {string} project_name - Project name

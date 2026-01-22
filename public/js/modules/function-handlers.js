@@ -63,6 +63,10 @@ export const create_function_handlers = (state, api, navigation) => {
     state.inline_call_graph_error.value = '';
     state.inline_call_graph_depth.value = 5; // Reset to default depth
     state.selected_inline_graph_node.value = null;
+    state.reverse_call_graph_data.value = null;
+    state.reverse_call_graph_error.value = '';
+    state.reverse_call_graph_depth.value = 5; // Reset to default depth
+    state.selected_reverse_graph_node.value = null;
 
     // If this is a class or struct, fetch its members
     if (
@@ -146,6 +150,7 @@ export const create_function_handlers = (state, api, navigation) => {
  * @param {Object} navigation - Navigation handlers
  * @param {Object} graph_handlers - Graph handlers for loading graphs
  * @param {Object} flowchart_handlers - Flowchart handlers
+ * @param {Object} reverse_graph_handlers - Reverse graph handlers (optional)
  * @returns {Object} Callers/callees/references functions
  */
 export const create_callers_callees_handlers = (
@@ -153,7 +158,8 @@ export const create_callers_callees_handlers = (
   api,
   navigation,
   graph_handlers,
-  flowchart_handlers
+  flowchart_handlers,
+  reverse_graph_handlers = null
 ) => {
   /**
    * Load callers for the selected function.
@@ -236,6 +242,8 @@ export const create_callers_callees_handlers = (
     if (tab === 'callers') await load_callers();
     else if (tab === 'callees') await load_callees();
     else if (tab === 'callgraph') await graph_handlers.load_inline_call_graph();
+    else if (tab === 'reversegraph' && reverse_graph_handlers)
+      await reverse_graph_handlers.load_reverse_call_graph();
     else if (tab === 'flowchart') await flowchart_handlers.load_flowchart();
     else if (tab === 'references') await load_references();
     navigation.update_url();

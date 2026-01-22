@@ -95,6 +95,16 @@ export const create_state = (ref) => {
   const flowchart_fullscreen = ref(false);
   const call_graph_fullscreen = ref(false);
 
+  // Reverse call graph state (callers only, for function detail tab)
+  const reverse_call_graph_data = ref(null);
+  const loading_reverse_call_graph = ref(false);
+  const reverse_call_graph_error = ref('');
+  const reverse_graph_container = ref(null);
+  const reverse_graph_svg = ref(null);
+  const selected_reverse_graph_node = ref(null);
+  const reverse_call_graph_depth = ref(5);
+  const reverse_graph_fullscreen = ref(false);
+
   // Autocomplete search state
   const search_suggestions = ref([]);
   const show_autocomplete = ref(false);
@@ -243,6 +253,16 @@ export const create_state = (ref) => {
     inline_graph_fullscreen,
     flowchart_fullscreen,
     call_graph_fullscreen,
+
+    // Reverse call graph state
+    reverse_call_graph_data,
+    loading_reverse_call_graph,
+    reverse_call_graph_error,
+    reverse_graph_container,
+    reverse_graph_svg,
+    selected_reverse_graph_node,
+    reverse_call_graph_depth,
+    reverse_graph_fullscreen,
 
     // Autocomplete search state
     search_suggestions,
