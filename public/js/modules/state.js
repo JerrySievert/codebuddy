@@ -105,6 +105,16 @@ export const create_state = (ref) => {
   const reverse_call_graph_depth = ref(5);
   const reverse_graph_fullscreen = ref(false);
 
+  // Entity heatmap state (for function detail tab)
+  const heatmap_data = ref(null);
+  const loading_heatmap = ref(false);
+  const heatmap_error = ref('');
+  const heatmap_container = ref(null);
+  const heatmap_svg = ref(null);
+  const selected_heatmap_node = ref(null);
+  const heatmap_depth = ref(3);
+  const heatmap_fullscreen = ref(false);
+
   // Autocomplete search state
   const search_suggestions = ref([]);
   const show_autocomplete = ref(false);
@@ -263,6 +273,16 @@ export const create_state = (ref) => {
     selected_reverse_graph_node,
     reverse_call_graph_depth,
     reverse_graph_fullscreen,
+
+    // Entity heatmap state
+    heatmap_data,
+    loading_heatmap,
+    heatmap_error,
+    heatmap_container,
+    heatmap_svg,
+    selected_heatmap_node,
+    heatmap_depth,
+    heatmap_fullscreen,
 
     // Autocomplete search state
     search_suggestions,

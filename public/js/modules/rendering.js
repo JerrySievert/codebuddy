@@ -1365,3 +1365,214 @@ export const create_tree_renderer = (state, d3) => {
 
   return { render_tree };
 };
+
+// ============================================================================
+// Heatmap Renderer (Treemap Visualization)
+// ============================================================================
+
+/**
+ * Creates a renderer for entity heatmaps using treemap visualization.
+ * Shows function call frequency with rectangle size and color intensity.
+ * @param {Object} state - Application state
+ * @param {Object} d3 - D3 library
+ * @returns {Object} Heatmap renderer functions
+ */
+export const create_heatmap_renderer = (state, d3) => {
+  let heatmap_svg_element = null;
+  let heatmap_g = null;
+  let heatmap_zoom = null;
+
+  /**
+   * Build hierarchy data for treemap from flat nodes.
+   * Groups nodes and assigns values based on heat/connectivity.
+   */
+  const build_treemap_hierarchy = (nodes, root_id) => {
+    // Create hierarchy: root contains all other nodes as children
+    const root_node = nodes.find((n) => n.id === root_id);
+    const other_nodes = nodes.filter((n) => n.id !== root_id);
+
+    return {
+      name: root_node ? root_node.symbol : 'root',
+      children: other_nodes.map((n) => ({
+        name: n.symbol,
+        // Value determines rectangle size - use caller_count + base value
+        // More callers = larger rectangle
+        value: Math.max(1, (n.caller_count || 0) + 1),
+        data: n
+      }))
+    };
+  };
+
+  /**
+   * Render treemap heatmap visualization.
+   */
+  const render_heatmap = () => {
+    if (!state.heatmap_data.value || !state.heatmap_svg.value) {
+      console.log('Missing heatmap data or SVG ref');
+      return;
+    }
+
+    const container = state.heatmap_container.value;
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 600;
+
+    // Clear previous content
+    d3.select(state.heatmap_svg.value).selectAll('*').remove();
+
+    heatmap_svg_element = d3
+      .select(state.heatmap_svg.value)
+      .attr('width', width)
+      .attr('height', height);
+
+    // Add zoom behavior
+    heatmap_zoom = d3
+      .zoom()
+      .scaleExtent([0.5, 4])
+      .on('zoom', (event) => {
+        heatmap_g.attr('transform', event.transform);
+      });
+
+    heatmap_svg_element.call(heatmap_zoom);
+    heatmap_g = heatmap_svg_element.append('g');
+
+    // Get data
+    const nodes = state.heatmap_data.value.nodes || [];
+    const root_id = state.heatmap_data.value.root;
+
+    if (nodes.length === 0) {
+      console.log('No nodes to render in heatmap');
+      return;
+    }
+
+    // Build hierarchy for treemap
+    const hierarchy_data = build_treemap_hierarchy(nodes, root_id);
+
+    // Create treemap layout
+    const treemap = d3.treemap().size([width, height]).padding(2).round(true);
+
+    // Create hierarchy and compute values
+    const root = d3
+      .hierarchy(hierarchy_data)
+      .sum((d) => d.value)
+      .sort((a, b) => b.value - a.value);
+
+    // Apply treemap layout
+    treemap(root);
+
+    // Draw treemap cells
+    const cell = heatmap_g
+      .selectAll('g')
+      .data(root.leaves())
+      .join('g')
+      .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
+      .attr('class', 'treemap-cell')
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        state.selected_heatmap_node.value = d.data.data;
+        heatmap_g.selectAll('rect').attr('stroke-width', 1);
+        d3.select(event.currentTarget).select('rect').attr('stroke-width', 3);
+      });
+
+    // Cell rectangles with heat-based coloring
+    cell
+      .append('rect')
+      .attr('width', (d) => Math.max(0, d.x1 - d.x0))
+      .attr('height', (d) => Math.max(0, d.y1 - d.y0))
+      .attr('fill', (d) => get_heat_fill(d.data.data?.heat || 0))
+      .attr('stroke', (d) => get_heat_stroke(d.data.data?.heat || 0))
+      .attr('stroke-width', 1);
+
+    // Cell labels - only show if cell is large enough
+    cell
+      .append('text')
+      .attr('x', 4)
+      .attr('y', 14)
+      .attr('font-size', '11px')
+      .attr('fill', '#333')
+      .text((d) => {
+        const cell_width = d.x1 - d.x0;
+        const cell_height = d.y1 - d.y0;
+        if (cell_width < 40 || cell_height < 20) return '';
+        const max_chars = Math.floor(cell_width / 7);
+        return truncate_string(d.data.name, max_chars);
+      });
+
+    // Caller count label
+    cell
+      .append('text')
+      .attr('x', 4)
+      .attr('y', 28)
+      .attr('font-size', '10px')
+      .attr('fill', '#666')
+      .text((d) => {
+        const cell_width = d.x1 - d.x0;
+        const cell_height = d.y1 - d.y0;
+        if (cell_width < 40 || cell_height < 35) return '';
+        const count = d.data.data?.caller_count || 0;
+        return `${count} caller${count !== 1 ? 's' : ''}`;
+      });
+
+    // Click on background to deselect
+    heatmap_svg_element.on('click', () => {
+      state.selected_heatmap_node.value = null;
+      heatmap_g.selectAll('rect').attr('stroke-width', 1);
+    });
+  };
+
+  const zoom_in = () => {
+    if (heatmap_svg_element && heatmap_zoom) {
+      heatmap_svg_element.transition().call(heatmap_zoom.scaleBy, 1.3);
+    }
+  };
+
+  const zoom_out = () => {
+    if (heatmap_svg_element && heatmap_zoom) {
+      heatmap_svg_element.transition().call(heatmap_zoom.scaleBy, 0.7);
+    }
+  };
+
+  const reset_zoom = () => {
+    if (heatmap_svg_element && heatmap_zoom) {
+      heatmap_svg_element
+        .transition()
+        .call(heatmap_zoom.transform, d3.zoomIdentity);
+    }
+  };
+
+  const stop_simulation = () => {
+    // No simulation in treemap, but keep interface consistent
+  };
+
+  return {
+    render_heatmap,
+    zoom_in,
+    zoom_out,
+    reset_zoom,
+    stop_simulation
+  };
+};
+
+/**
+ * Get fill color for heat value (0-1).
+ * Uses a gradient from blue (cold) to red (hot).
+ */
+const get_heat_fill = (heat) => {
+  // Interpolate from blue to red through the spectrum
+  const h = heat;
+  if (h < 0.25) return '#e3f2fd'; // light blue
+  if (h < 0.5) return '#c8e6c9'; // light green
+  if (h < 0.75) return '#fff9c4'; // light yellow
+  return '#ffcdd2'; // light red
+};
+
+/**
+ * Get stroke color for heat value (0-1).
+ */
+const get_heat_stroke = (heat) => {
+  const h = heat;
+  if (h < 0.25) return '#1565c0'; // blue
+  if (h < 0.5) return '#2e7d32'; // green
+  if (h < 0.75) return '#f9a825'; // yellow/orange
+  return '#c62828'; // red
+};

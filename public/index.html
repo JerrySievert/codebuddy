@@ -527,18 +527,18 @@
                 :class="{ 'fullscreen': callGraphFullscreen }"
                 ref="graphContainer"
               >
-                <div class="graph-controls">
-                  <button @click="zoomIn">Zoom In</button>
-                  <button @click="zoomOut">Zoom Out</button>
-                  <button @click="resetZoom">Reset</button>
+                <svg class="graph-svg" ref="graphSvg"></svg>
+                <div class="graph-controls-bottom">
+                  <button @click="zoomIn" title="Zoom In">+</button>
+                  <button @click="zoomOut" title="Zoom Out">−</button>
+                  <button @click="resetZoom" title="Reset Zoom">⟲</button>
                   <button
-                    class="fullscreen-btn"
                     @click="toggleCallGraphFullscreen"
+                    :title="callGraphFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
                   >
-                    {{ callGraphFullscreen ? '✕ Close' : '⛶ Fullscreen' }}
+                    {{ callGraphFullscreen ? '✕' : '⛶' }}
                   </button>
                 </div>
-                <svg class="graph-svg" ref="graphSvg"></svg>
                 <div v-if="selectedGraphNode" class="node-info-panel">
                   <div class="node-info-header">
                     {{ selectedGraphNode.symbol }}{{
@@ -3996,6 +3996,13 @@
                 </div>
                 <div
                   class="tab"
+                  :class="{ active: activeTab === 'heatmap' }"
+                  @click="setActiveTab('heatmap')"
+                >
+                  Heatmap
+                </div>
+                <div
+                  class="tab"
                   :class="{ active: activeTab === 'callers' }"
                   @click="setActiveTab('callers')"
                 >
@@ -4062,18 +4069,24 @@
                   :class="{ 'fullscreen': inlineGraphFullscreen }"
                   ref="inlineGraphContainer"
                 >
-                  <div class="graph-controls">
-                    <button @click="inlineGraphZoomIn">Zoom In</button>
-                    <button @click="inlineGraphZoomOut">Zoom Out</button>
-                    <button @click="inlineGraphResetZoom">Reset</button>
+                  <svg class="graph-svg" ref="inlineGraphSvg"></svg>
+                  <div class="graph-controls-bottom">
+                    <button @click="inlineGraphZoomIn" title="Zoom In">
+                      +
+                    </button>
+                    <button @click="inlineGraphZoomOut" title="Zoom Out">
+                      −
+                    </button>
+                    <button @click="inlineGraphResetZoom" title="Reset Zoom">
+                      ⟲
+                    </button>
                     <button
-                      class="fullscreen-btn"
                       @click="toggleInlineGraphFullscreen"
+                      :title="inlineGraphFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
                     >
-                      {{ inlineGraphFullscreen ? '✕ Close' : '⛶ Fullscreen' }}
+                      {{ inlineGraphFullscreen ? '✕' : '⛶' }}
                     </button>
                   </div>
-                  <svg class="graph-svg" ref="inlineGraphSvg"></svg>
                   <div v-if="selectedInlineGraphNode" class="node-info-panel">
                     <div class="node-info-header">
                       {{ selectedInlineGraphNode.symbol }}{{
@@ -4189,18 +4202,24 @@
                   :class="{ 'fullscreen': reverseGraphFullscreen }"
                   ref="reverseGraphContainer"
                 >
-                  <div class="graph-controls">
-                    <button @click="reverseGraphZoomIn">Zoom In</button>
-                    <button @click="reverseGraphZoomOut">Zoom Out</button>
-                    <button @click="reverseGraphResetZoom">Reset</button>
+                  <svg class="graph-svg" ref="reverseGraphSvg"></svg>
+                  <div class="graph-controls-bottom">
+                    <button @click="reverseGraphZoomIn" title="Zoom In">
+                      +
+                    </button>
+                    <button @click="reverseGraphZoomOut" title="Zoom Out">
+                      −
+                    </button>
+                    <button @click="reverseGraphResetZoom" title="Reset Zoom">
+                      ⟲
+                    </button>
                     <button
-                      class="fullscreen-btn"
                       @click="toggleReverseGraphFullscreen"
+                      :title="reverseGraphFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
                     >
-                      {{ reverseGraphFullscreen ? '✕ Close' : '⛶ Fullscreen' }}
+                      {{ reverseGraphFullscreen ? '✕' : '⛶' }}
                     </button>
                   </div>
-                  <svg class="graph-svg" ref="reverseGraphSvg"></svg>
                   <div v-if="selectedReverseGraphNode" class="node-info-panel">
                     <div class="node-info-header">
                       {{ selectedReverseGraphNode.symbol }}{{
@@ -4279,18 +4298,22 @@
                   :class="{ 'fullscreen': flowchartFullscreen }"
                   ref="flowchartContainer"
                 >
-                  <div class="graph-controls">
-                    <button @click="flowchartZoomIn">Zoom In</button>
-                    <button @click="flowchartZoomOut">Zoom Out</button>
-                    <button @click="flowchartResetZoom">Reset</button>
+                  <svg class="flowchart-svg" ref="flowchartSvg"></svg>
+                  <div class="graph-controls-bottom">
+                    <button @click="flowchartZoomIn" title="Zoom In">+</button>
+                    <button @click="flowchartZoomOut" title="Zoom Out">
+                      −
+                    </button>
+                    <button @click="flowchartResetZoom" title="Reset Zoom">
+                      ⟲
+                    </button>
                     <button
-                      class="fullscreen-btn"
                       @click="toggleFlowchartFullscreen"
+                      :title="flowchartFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
                     >
-                      {{ flowchartFullscreen ? '✕ Close' : '⛶ Fullscreen' }}
+                      {{ flowchartFullscreen ? '✕' : '⛶' }}
                     </button>
                   </div>
-                  <svg class="flowchart-svg" ref="flowchartSvg"></svg>
                   <div
                     v-if="selectedFlowchartNode"
                     class="flowchart-info-panel"
@@ -4352,6 +4375,115 @@
                 <div v-else class="empty-state">
                   No flowchart data available
                 </div>
+              </div>
+
+              <div v-if="activeTab === 'heatmap'">
+                <!-- Depth Selector -->
+                <div class="depth-selector" style="margin-bottom: 12px">
+                  <label>Depth:</label>
+                  <select
+                    :value="heatmapDepth"
+                    @change="setHeatmapDepth(parseInt($event.target.value))"
+                  >
+                    <option :value="1">1</option>
+                    <option :value="2">2</option>
+                    <option :value="3">3</option>
+                    <option :value="4">4</option>
+                    <option :value="5">5</option>
+                    <option :value="6">6</option>
+                    <option :value="7">7</option>
+                    <option :value="8">8</option>
+                    <option :value="9">9</option>
+                    <option :value="10">10</option>
+                    <option :value="0">Unlimited</option>
+                  </select>
+                </div>
+                <div v-if="loadingHeatmap" class="loading">
+                  Loading heatmap...
+                </div>
+                <div v-else-if="heatmapError" class="empty-state">
+                  {{ heatmapError }}
+                </div>
+                <div
+                  v-else-if="heatmapData"
+                  class="graph-container"
+                  :class="{ 'fullscreen': heatmapFullscreen }"
+                  ref="heatmapContainer"
+                >
+                  <svg class="graph-svg" ref="heatmapSvg"></svg>
+                  <div class="heatmap-controls-bottom">
+                    <button @click="heatmapZoomIn" title="Zoom In">+</button>
+                    <button @click="heatmapZoomOut" title="Zoom Out">−</button>
+                    <button @click="heatmapResetZoom" title="Reset Zoom">
+                      ⟲
+                    </button>
+                    <button
+                      @click="toggleHeatmapFullscreen"
+                      :title="heatmapFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
+                    >
+                      {{ heatmapFullscreen ? '✕' : '⛶' }}
+                    </button>
+                  </div>
+                  <div
+                    v-if="selectedHeatmapNode"
+                    class="node-info-panel heatmap-info-panel"
+                  >
+                    <div class="node-info-header">
+                      {{ selectedHeatmapNode.symbol }}{{
+                      selectedHeatmapNode.parameters || '' }}
+                    </div>
+                    <div class="node-info-body">
+                      <div class="node-info-row">
+                        <div class="node-info-label">Location</div>
+                        <div class="node-info-value">
+                          {{ selectedHeatmapNode.filename }}:{{
+                          selectedHeatmapNode.start_line }}
+                        </div>
+                      </div>
+                      <div class="node-info-row">
+                        <div class="node-info-label">Callers</div>
+                        <div class="node-info-value">
+                          {{ selectedHeatmapNode.caller_count || 0 }} call sites
+                        </div>
+                      </div>
+                      <div
+                        v-if="selectedHeatmapNode.return_type"
+                        class="node-info-row"
+                      >
+                        <div class="node-info-label">Return Type</div>
+                        <div class="node-info-value">
+                          {{ selectedHeatmapNode.return_type }}
+                        </div>
+                      </div>
+                      <div style="margin-top: 12px">
+                        <button
+                          class="btn-primary"
+                          @click="selectFunction(selectedHeatmapNode)"
+                        >
+                          View Details
+                        </button>
+                        <button
+                          class="btn-secondary"
+                          @click="recenterHeatmap(selectedHeatmapNode.symbol)"
+                        >
+                          Recenter
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="heatmap-legend">
+                    <div class="heatmap-legend-title">Caller Count</div>
+                    <div class="heatmap-legend-gradient"></div>
+                    <div class="heatmap-legend-labels">
+                      <span>Few</span>
+                      <span>Many</span>
+                    </div>
+                    <div class="heatmap-legend-note">
+                      Size & color = # of callers
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="empty-state">No heatmap data available</div>
               </div>
 
               <div v-if="activeTab === 'callers'">

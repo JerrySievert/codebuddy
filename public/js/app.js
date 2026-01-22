@@ -10,7 +10,8 @@ import {
   create_call_graph_renderer,
   create_inline_graph_renderer,
   create_reverse_graph_renderer,
-  create_tree_renderer
+  create_tree_renderer,
+  create_heatmap_renderer
 } from './modules/rendering.js';
 import {
   create_navigation,
@@ -32,7 +33,8 @@ import {
   create_call_graph_handlers,
   create_flowchart_handlers,
   create_inline_graph_handlers,
-  create_reverse_graph_handlers
+  create_reverse_graph_handlers,
+  create_heatmap_handlers
 } from './modules/graph-handlers.js';
 import {
   create_function_handlers,
@@ -55,6 +57,7 @@ createApp({
     const inline_graph_renderer = create_inline_graph_renderer(state, d3);
     const reverse_graph_renderer = create_reverse_graph_renderer(state, d3);
     const tree_renderer = create_tree_renderer(state, d3);
+    const heatmap_renderer = create_heatmap_renderer(state, d3);
 
     // Placeholder navigation for circular dependency resolution
     let navigation = null;
@@ -109,6 +112,13 @@ createApp({
       nextTick
     );
 
+    const heatmap_handlers = create_heatmap_handlers(
+      state,
+      api,
+      heatmap_renderer,
+      nextTick
+    );
+
     // Create callers/callees handlers
     const callers_callees_handlers = create_callers_callees_handlers(
       state,
@@ -116,7 +126,8 @@ createApp({
       { update_url: () => navigation?.update_url() },
       inline_graph_handlers,
       flowchart_handlers,
-      reverse_graph_handlers
+      reverse_graph_handlers,
+      heatmap_handlers
     );
 
     // Create navigation handlers object for navigation module
@@ -132,6 +143,7 @@ createApp({
       load_inline_call_graph: inline_graph_handlers.load_inline_call_graph,
       load_reverse_call_graph: reverse_graph_handlers.load_reverse_call_graph,
       load_flowchart: flowchart_handlers.load_flowchart,
+      load_heatmap: heatmap_handlers.load_heatmap,
       load_references: callers_callees_handlers.load_references,
       open_call_graph: call_graph_handlers.open_call_graph,
       reload_tree_view: call_graph_handlers.reload_tree_view,
@@ -546,6 +558,15 @@ createApp({
       selectedReverseGraphNode: state.selected_reverse_graph_node,
       reverseCallGraphDepth: state.reverse_call_graph_depth,
       reverseGraphFullscreen: state.reverse_graph_fullscreen,
+      // Heatmap state
+      heatmapData: state.heatmap_data,
+      loadingHeatmap: state.loading_heatmap,
+      heatmapError: state.heatmap_error,
+      heatmapContainer: state.heatmap_container,
+      heatmapSvg: state.heatmap_svg,
+      selectedHeatmapNode: state.selected_heatmap_node,
+      heatmapDepth: state.heatmap_depth,
+      heatmapFullscreen: state.heatmap_fullscreen,
       currentDirectory: state.current_directory,
       serverReadOnly: state.server_read_only,
       showReadOnlyModal: state.show_read_only_modal,
@@ -648,6 +669,14 @@ createApp({
       reverseGraphZoomIn: reverse_graph_renderer.zoom_in,
       reverseGraphZoomOut: reverse_graph_renderer.zoom_out,
       reverseGraphResetZoom: reverse_graph_renderer.reset_zoom,
+      // Heatmap handlers
+      loadHeatmap: heatmap_handlers.load_heatmap,
+      recenterHeatmap: heatmap_handlers.recenter_heatmap,
+      setHeatmapDepth: heatmap_handlers.set_heatmap_depth,
+      toggleHeatmapFullscreen: heatmap_handlers.toggle_heatmap_fullscreen,
+      heatmapZoomIn: heatmap_renderer.zoom_in,
+      heatmapZoomOut: heatmap_renderer.zoom_out,
+      heatmapResetZoom: heatmap_renderer.reset_zoom,
       viewFunctionDetails: view_function_details,
       onSearchInput: search_handlers.on_search_input,
       navigateAutocomplete: search_handlers.navigate_autocomplete,

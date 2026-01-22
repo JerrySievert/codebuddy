@@ -606,6 +606,8 @@ header h1 {
   display: flex;
   border-bottom: 2px solid #e0e0e0;
   margin-bottom: 16px;
+  overflow-x: auto;
+  flex-wrap: wrap;
 }
 
 .tab {
@@ -4232,4 +4234,118 @@ header h1 {
   border: none;
   border-top: 1px solid #eee;
   margin: 24px 0;
+}
+
+
+/* Heatmap Treemap Styles */
+.heatmap-controls-bottom {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+
+.heatmap-controls-bottom button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heatmap-controls-bottom button:hover {
+  background: #fff;
+  border-color: #2196f3;
+}
+
+.heatmap-info-panel {
+  top: 10px;
+  right: 10px;
+  bottom: auto;
+  left: auto;
+  max-width: 280px;
+}
+
+.heatmap-legend {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  z-index: 10;
+}
+
+.heatmap-legend-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+.heatmap-legend-gradient {
+  width: 120px;
+  height: 12px;
+  background: linear-gradient(to right, #e3f2fd, #c8e6c9, #fff9c4, #ffcdd2);
+  border: 1px solid #ccc;
+  border-radius: 2px;
+}
+
+.heatmap-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+  color: #666;
+}
+
+.heatmap-legend-note {
+  margin-top: 6px;
+  color: #888;
+  font-style: italic;
+}
+
+.treemap-cell rect {
+  transition: stroke-width 0.15s ease;
+}
+
+.treemap-cell:hover rect {
+  stroke-width: 2px !important;
+}
+
+/* Graph controls positioned at bottom-right */
+.graph-controls-bottom {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+
+.graph-controls-bottom button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.graph-controls-bottom button:hover {
+  background: #fff;
+  border-color: #2196f3;
 }

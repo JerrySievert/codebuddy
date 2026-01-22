@@ -543,3 +543,119 @@ export const create_reverse_graph_handlers = (
     toggle_reverse_graph_fullscreen
   };
 };
+
+/**
+ * Creates heatmap handlers.
+ * @param {Object} state - Application state
+ * @param {Object} api - API module
+ * @param {Object} heatmap_renderer - Heatmap renderer
+ * @param {Function} nextTick - Vue nextTick function
+ * @returns {Object} Heatmap functions
+ */
+export const create_heatmap_handlers = (
+  state,
+  api,
+  heatmap_renderer,
+  nextTick
+) => {
+  /**
+   * Load heatmap for function detail tab.
+   */
+  const load_heatmap = async () => {
+    if (!state.selected_function.value) return;
+
+    // Always reload with current depth setting
+    state.loading_heatmap.value = true;
+    state.heatmap_error.value = '';
+    state.selected_heatmap_node.value = null;
+
+    try {
+      const data = await api.load_heatmap(
+        state.selected_function.value.symbol,
+        state.selected_project.value.name,
+        state.heatmap_depth.value
+      );
+
+      if (data.error) {
+        state.heatmap_error.value = data.error;
+        return;
+      }
+
+      state.heatmap_data.value = data;
+    } catch (error) {
+      console.error('Failed to load heatmap:', error);
+      state.heatmap_error.value = 'Failed to load heatmap';
+    } finally {
+      state.loading_heatmap.value = false;
+      await nextTick();
+      setTimeout(() => {
+        heatmap_renderer.render_heatmap();
+      }, 50);
+    }
+  };
+
+  /**
+   * Recenter heatmap on a different function.
+   * @param {string} symbol - Function symbol
+   */
+  const recenter_heatmap = async (symbol) => {
+    state.loading_heatmap.value = true;
+    state.heatmap_error.value = '';
+    state.selected_heatmap_node.value = null;
+
+    try {
+      const data = await api.load_heatmap(
+        symbol,
+        state.selected_project.value.name,
+        state.heatmap_depth.value
+      );
+
+      if (data.error) {
+        state.heatmap_error.value = data.error;
+        return;
+      }
+
+      state.heatmap_data.value = data;
+    } catch (error) {
+      console.error('Failed to recenter heatmap:', error);
+      state.heatmap_error.value = 'Failed to load heatmap';
+    } finally {
+      state.loading_heatmap.value = false;
+      await nextTick();
+      setTimeout(() => {
+        heatmap_renderer.render_heatmap();
+      }, 50);
+    }
+  };
+
+  /**
+   * Set heatmap depth and reload.
+   * @param {number} new_depth - New depth value
+   */
+  const set_heatmap_depth = async (new_depth) => {
+    state.heatmap_depth.value = new_depth;
+
+    if (state.active_tab.value === 'heatmap' && state.selected_function.value) {
+      await load_heatmap();
+    }
+  };
+
+  /**
+   * Toggle fullscreen for heatmap.
+   */
+  const toggle_heatmap_fullscreen = () => {
+    state.heatmap_fullscreen.value = !state.heatmap_fullscreen.value;
+    nextTick(() => {
+      if (state.heatmap_data.value) {
+        heatmap_renderer.render_heatmap();
+      }
+    });
+  };
+
+  return {
+    load_heatmap,
+    recenter_heatmap,
+    set_heatmap_depth,
+    toggle_heatmap_fullscreen
+  };
+};

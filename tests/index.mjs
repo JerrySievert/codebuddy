@@ -22,6 +22,7 @@ import './lib/api_stats_delete.mjs';
 import './lib/concurrency.mjs';
 import './lib/resources.mjs';
 import './lib/callgraph.mjs';
+import './lib/heatmap.mjs';
 import './lib/controlflow.mjs';
 import './lib/parser-pool.mjs';
 import './lib/analysis/complexity.mjs';

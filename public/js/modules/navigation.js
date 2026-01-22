@@ -176,6 +176,7 @@ export const create_navigation = (state, handlers) => {
                 else if (tab === 'reversegraph')
                   await handlers.load_reverse_call_graph();
                 else if (tab === 'flowchart') await handlers.load_flowchart();
+                else if (tab === 'heatmap') await handlers.load_heatmap();
                 else if (tab === 'references') await handlers.load_references();
               }
             }

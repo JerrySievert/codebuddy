@@ -67,6 +67,10 @@ export const create_function_handlers = (state, api, navigation) => {
     state.reverse_call_graph_error.value = '';
     state.reverse_call_graph_depth.value = 5; // Reset to default depth
     state.selected_reverse_graph_node.value = null;
+    state.heatmap_data.value = null;
+    state.heatmap_error.value = '';
+    state.heatmap_depth.value = 3; // Reset to default depth
+    state.selected_heatmap_node.value = null;
 
     // If this is a class or struct, fetch its members
     if (
@@ -151,6 +155,7 @@ export const create_function_handlers = (state, api, navigation) => {
  * @param {Object} graph_handlers - Graph handlers for loading graphs
  * @param {Object} flowchart_handlers - Flowchart handlers
  * @param {Object} reverse_graph_handlers - Reverse graph handlers (optional)
+ * @param {Object} heatmap_handlers - Heatmap handlers (optional)
  * @returns {Object} Callers/callees/references functions
  */
 export const create_callers_callees_handlers = (
@@ -159,7 +164,8 @@ export const create_callers_callees_handlers = (
   navigation,
   graph_handlers,
   flowchart_handlers,
-  reverse_graph_handlers = null
+  reverse_graph_handlers = null,
+  heatmap_handlers = null
 ) => {
   /**
    * Load callers for the selected function.
@@ -245,6 +251,8 @@ export const create_callers_callees_handlers = (
     else if (tab === 'reversegraph' && reverse_graph_handlers)
       await reverse_graph_handlers.load_reverse_call_graph();
     else if (tab === 'flowchart') await flowchart_handlers.load_flowchart();
+    else if (tab === 'heatmap' && heatmap_handlers)
+      await heatmap_handlers.load_heatmap();
     else if (tab === 'references') await load_references();
     navigation.update_url();
   };
