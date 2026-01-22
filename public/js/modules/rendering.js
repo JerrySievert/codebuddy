@@ -1482,16 +1482,13 @@ export const create_heatmap_renderer = (state, d3) => {
    * Shows functions sorted by caller count in a grid layout.
    */
   const render_matrix = (nodes, root_id, width, height) => {
-    // Sort nodes by caller count (descending), excluding root
-    const root_node = nodes.find((n) => n.id === root_id);
-    const sorted_nodes = nodes
-      .filter((n) => n.id !== root_id)
-      .sort((a, b) => (b.caller_count || 0) - (a.caller_count || 0));
-
-    // Add root at the beginning
-    if (root_node) {
-      sorted_nodes.unshift(root_node);
-    }
+    // Sort all nodes by caller count (descending), then by name for stability
+    const sorted_nodes = [...nodes].sort((a, b) => {
+      const count_diff = (b.caller_count || 0) - (a.caller_count || 0);
+      if (count_diff !== 0) return count_diff;
+      // Secondary sort by symbol name for stability
+      return (a.symbol || '').localeCompare(b.symbol || '');
+    });
 
     const num_nodes = sorted_nodes.length;
     if (num_nodes === 0) return;

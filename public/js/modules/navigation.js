@@ -33,6 +33,32 @@ export const create_navigation = (state, handlers) => {
       if (state.active_tab.value && state.active_tab.value !== 'source') {
         params.set('tab', state.active_tab.value);
       }
+      // Add heatmap-specific params
+      if (state.active_tab.value === 'heatmap') {
+        if (
+          state.heatmap_view_type.value &&
+          state.heatmap_view_type.value !== 'treemap'
+        ) {
+          params.set('heatmapView', state.heatmap_view_type.value);
+        }
+        if (state.heatmap_depth.value !== 3) {
+          params.set('heatmapDepth', state.heatmap_depth.value);
+        }
+      }
+      // Add inline call graph depth
+      if (
+        state.active_tab.value === 'callgraph' &&
+        state.inline_call_graph_depth.value !== 5
+      ) {
+        params.set('inlineDepth', state.inline_call_graph_depth.value);
+      }
+      // Add reverse call graph depth
+      if (
+        state.active_tab.value === 'reversegraph' &&
+        state.reverse_call_graph_depth.value !== 5
+      ) {
+        params.set('reverseDepth', state.reverse_call_graph_depth.value);
+      }
     }
     if (state.show_call_graph.value && state.call_graph_root.value) {
       params.set('callgraph', state.call_graph_root.value);
@@ -90,6 +116,10 @@ export const create_navigation = (state, handlers) => {
     const depth_param = params.get('depth');
     const view = params.get('view');
     const analysis_tab_param = params.get('analysisTab');
+    const heatmap_view = params.get('heatmapView');
+    const heatmap_depth_param = params.get('heatmapDepth');
+    const inline_depth_param = params.get('inlineDepth');
+    const reverse_depth_param = params.get('reverseDepth');
 
     // Handle jobs view (doesn't require project)
     if (view === 'jobs') {
@@ -171,13 +201,39 @@ export const create_navigation = (state, handlers) => {
                 state.active_tab.value = tab;
                 if (tab === 'callers') await handlers.load_callers();
                 else if (tab === 'callees') await handlers.load_callees();
-                else if (tab === 'callgraph')
+                else if (tab === 'callgraph') {
+                  // Restore inline call graph depth
+                  if (inline_depth_param) {
+                    const depth = parseInt(inline_depth_param, 10);
+                    if (!isNaN(depth) && depth >= 1) {
+                      state.inline_call_graph_depth.value = depth;
+                    }
+                  }
                   await handlers.load_inline_call_graph();
-                else if (tab === 'reversegraph')
+                } else if (tab === 'reversegraph') {
+                  // Restore reverse call graph depth
+                  if (reverse_depth_param) {
+                    const depth = parseInt(reverse_depth_param, 10);
+                    if (!isNaN(depth) && depth >= 1) {
+                      state.reverse_call_graph_depth.value = depth;
+                    }
+                  }
                   await handlers.load_reverse_call_graph();
-                else if (tab === 'flowchart') await handlers.load_flowchart();
-                else if (tab === 'heatmap') await handlers.load_heatmap();
-                else if (tab === 'references') await handlers.load_references();
+                } else if (tab === 'flowchart') await handlers.load_flowchart();
+                else if (tab === 'heatmap') {
+                  // Restore heatmap view type and depth
+                  if (heatmap_view) {
+                    state.heatmap_view_type.value = heatmap_view;
+                  }
+                  if (heatmap_depth_param) {
+                    const depth = parseInt(heatmap_depth_param, 10);
+                    if (!isNaN(depth) && depth >= 1) {
+                      state.heatmap_depth.value = depth;
+                    }
+                  }
+                  await handlers.load_heatmap();
+                } else if (tab === 'references')
+                  await handlers.load_references();
               }
             }
           } catch (e) {

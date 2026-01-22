@@ -654,8 +654,10 @@ createApp({
       loadFlowchart: flowchart_handlers.load_flowchart,
       loadInlineCallGraph: inline_graph_handlers.load_inline_call_graph,
       recenterInlineGraph: inline_graph_handlers.recenter_inline_graph,
-      setInlineCallGraphDepth:
-        inline_graph_handlers.set_inline_call_graph_depth,
+      setInlineCallGraphDepth: async (depth) => {
+        await inline_graph_handlers.set_inline_call_graph_depth(depth);
+        navigation.update_url();
+      },
       toggleInlineGraphFullscreen:
         inline_graph_handlers.toggle_inline_graph_fullscreen,
       toggleFlowchartFullscreen: flowchart_handlers.toggle_flowchart_fullscreen,
@@ -663,8 +665,10 @@ createApp({
         call_graph_handlers.toggle_call_graph_fullscreen,
       loadReverseCallGraph: reverse_graph_handlers.load_reverse_call_graph,
       recenterReverseGraph: reverse_graph_handlers.recenter_reverse_graph,
-      setReverseCallGraphDepth:
-        reverse_graph_handlers.set_reverse_call_graph_depth,
+      setReverseCallGraphDepth: async (depth) => {
+        await reverse_graph_handlers.set_reverse_call_graph_depth(depth);
+        navigation.update_url();
+      },
       toggleReverseGraphFullscreen:
         reverse_graph_handlers.toggle_reverse_graph_fullscreen,
       reverseGraphZoomIn: reverse_graph_renderer.zoom_in,
@@ -673,8 +677,14 @@ createApp({
       // Heatmap handlers
       loadHeatmap: heatmap_handlers.load_heatmap,
       recenterHeatmap: heatmap_handlers.recenter_heatmap,
-      setHeatmapDepth: heatmap_handlers.set_heatmap_depth,
-      setHeatmapViewType: heatmap_handlers.set_heatmap_view_type,
+      setHeatmapDepth: async (depth) => {
+        await heatmap_handlers.set_heatmap_depth(depth);
+        navigation.update_url();
+      },
+      setHeatmapViewType: (view_type) => {
+        heatmap_handlers.set_heatmap_view_type(view_type);
+        navigation.update_url();
+      },
       toggleHeatmapFullscreen: heatmap_handlers.toggle_heatmap_fullscreen,
       heatmapZoomIn: heatmap_renderer.zoom_in,
       heatmapZoomOut: heatmap_renderer.zoom_out,
