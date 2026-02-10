@@ -30,7 +30,7 @@ export const create_navigation = (state, handlers) => {
       if (state.selected_function.value.filename) {
         params.set('funcFile', state.selected_function.value.filename);
       }
-      if (state.active_tab.value && state.active_tab.value !== 'source') {
+      if (state.active_tab.value) {
         params.set('tab', state.active_tab.value);
       }
       // Add heatmap-specific params

@@ -93,7 +93,12 @@
                     >
                   </div>
                 </div>
-                <div class="autocomplete-hint">
+                <div
+                  class="autocomplete-hint"
+                  :class="{ highlighted: globalAutocompleteIndex === globalSearchSuggestions.length }"
+                  @mousedown.prevent="executeGlobalSearch()"
+                  @mouseenter="globalAutocompleteIndex = globalSearchSuggestions.length"
+                >
                   Press Enter to see all results
                 </div>
               </div>
@@ -3834,6 +3839,7 @@
             <!-- Function Detail View -->
             <div
               v-if="selectedFunction && !showCallGraph && !showAnalysisView"
+              :key="'fn-' + selectedFunction.id"
               class="card"
             >
               <div class="breadcrumb">

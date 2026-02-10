@@ -3969,6 +3969,13 @@ header h1 {
   background: #f9f9f9;
   border-top: 1px solid #eee;
   text-align: center;
+  cursor: pointer;
+}
+
+.autocomplete-hint:hover,
+.autocomplete-hint.highlighted {
+  background: #f0f7ff;
+  color: #1976d2;
 }
 
 /* ============================================

@@ -63,13 +63,11 @@ export const create_global_search_handlers = (state, api, update_url) => {
 
     state.global_autocomplete_index.value += direction;
 
+    // Allow index up to suggestions.length (the "see all results" item)
+    const max_index = state.global_search_suggestions.value.length;
     if (state.global_autocomplete_index.value < 0) {
-      state.global_autocomplete_index.value =
-        state.global_search_suggestions.value.length - 1;
-    } else if (
-      state.global_autocomplete_index.value >=
-      state.global_search_suggestions.value.length
-    ) {
+      state.global_autocomplete_index.value = max_index;
+    } else if (state.global_autocomplete_index.value > max_index) {
       state.global_autocomplete_index.value = 0;
     }
   };

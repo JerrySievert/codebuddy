@@ -1427,9 +1427,9 @@ export const create_heatmap_renderer = (state, d3) => {
     // Apply treemap layout
     treemap(root);
 
-    // Draw treemap cells
+    // Draw treemap cells - rectangles and tooltips in cell groups
     const cell = heatmap_g
-      .selectAll('g')
+      .selectAll('g.treemap-cell')
       .data(root.leaves())
       .join('g')
       .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
@@ -1451,13 +1451,25 @@ export const create_heatmap_renderer = (state, d3) => {
       .attr('stroke', (d) => get_heat_stroke(d.data.data?.heat || 0))
       .attr('stroke-width', 1);
 
-    // Cell labels - only show if cell is large enough
-    cell
-      .append('text')
-      .attr('x', 4)
-      .attr('y', 14)
+    // Label overlay group - renders on top of all rectangles
+    const label_overlay = heatmap_g.append('g').attr('class', 'label-overlay');
+
+    // Cell name labels - visibility recalculated on zoom
+    label_overlay
+      .selectAll('text.treemap-name')
+      .data(root.leaves())
+      .join('text')
+      .attr('class', 'heatmap-label heatmap-label-name treemap-name')
+      .attr('x', (d) => d.x0 + 4)
+      .attr('y', (d) => d.y0 + 14)
       .attr('font-size', '11px')
+      .attr('data-base-font-size', 11)
       .attr('fill', '#333')
+      .attr('data-cell-width', (d) => d.x1 - d.x0)
+      .attr('data-cell-height', (d) => d.y1 - d.y0)
+      .attr('data-label-type', 'name')
+      .attr('data-name', (d) => d.data.name)
+      .style('pointer-events', 'none')
       .text((d) => {
         const cell_width = d.x1 - d.x0;
         const cell_height = d.y1 - d.y0;
@@ -1466,13 +1478,22 @@ export const create_heatmap_renderer = (state, d3) => {
         return truncate_string(d.data.name, max_chars);
       });
 
-    // Caller count label
-    cell
-      .append('text')
-      .attr('x', 4)
-      .attr('y', 28)
+    // Caller count labels
+    label_overlay
+      .selectAll('text.treemap-count')
+      .data(root.leaves())
+      .join('text')
+      .attr('class', 'heatmap-label heatmap-label-count treemap-count')
+      .attr('x', (d) => d.x0 + 4)
+      .attr('y', (d) => d.y0 + 28)
       .attr('font-size', '10px')
+      .attr('data-base-font-size', 10)
       .attr('fill', '#666')
+      .attr('data-cell-width', (d) => d.x1 - d.x0)
+      .attr('data-cell-height', (d) => d.y1 - d.y0)
+      .attr('data-label-type', 'count')
+      .attr('data-count', (d) => d.data.data?.caller_count || 0)
+      .style('pointer-events', 'none')
       .text((d) => {
         const cell_width = d.x1 - d.x0;
         const cell_height = d.y1 - d.y0;
@@ -1521,13 +1542,17 @@ export const create_heatmap_renderer = (state, d3) => {
     const offset_x = (width - actual_width) / 2;
     const offset_y = (height - label_height - actual_height) / 2;
 
-    // Create cells
-    sorted_nodes.forEach((node, i) => {
+    // Precompute cell positions for reuse by both rect and label layers
+    const cell_data = sorted_nodes.map((node, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
       const x = offset_x + padding + col * (cell_size + padding);
       const y = offset_y + padding + row * (cell_size + padding);
+      return { node, x, y };
+    });
 
+    // Create cell groups with rectangles and tooltips
+    cell_data.forEach(({ node, x, y }) => {
       const cell = heatmap_g
         .append('g')
         .attr('class', 'matrix-cell')
@@ -1551,53 +1576,70 @@ export const create_heatmap_renderer = (state, d3) => {
         .attr('stroke', get_heat_stroke(node.heat || 0))
         .attr('stroke-width', node.id === root_id ? 2 : 1);
 
-      // Caller count in center
-      const caller_count = node.caller_count || 0;
-      cell
-        .append('text')
-        .attr('x', cell_size / 2)
-        .attr('y', cell_size / 2)
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'middle')
-        .attr('font-size', cell_size > 40 ? '14px' : '11px')
-        .attr('font-weight', 'bold')
-        .attr('fill', node.heat > 0.5 ? '#fff' : '#333')
-        .text(caller_count);
-
-      // Function name below cell (if space allows)
-      if (cell_size >= 30) {
-        const max_chars = Math.floor(cell_size / 6);
-        cell
-          .append('text')
-          .attr('x', cell_size / 2)
-          .attr('y', cell_size + 12)
-          .attr('text-anchor', 'middle')
-          .attr('font-size', '9px')
-          .attr('fill', '#666')
-          .text(truncate_string(node.symbol, max_chars))
-          .append('title')
-          .text(`${node.symbol} (${caller_count} callers)`);
-      }
-
       // Tooltip on hover
       cell
         .append('title')
         .text(
-          `${node.symbol}\n${node.project || ''}\n${node.filename || ''}\n${caller_count} callers`
+          `${node.symbol}\n${node.project || ''}\n${node.filename || ''}\n${node.caller_count || 0} callers`
         );
+    });
+
+    // Label overlay group - renders on top of all rectangles
+    const label_overlay = heatmap_g.append('g').attr('class', 'label-overlay');
+
+    // Caller count labels in center of cells
+    cell_data.forEach(({ node, x, y }) => {
+      const caller_count = node.caller_count || 0;
+      label_overlay
+        .append('text')
+        .attr('class', 'heatmap-label heatmap-label-matrix-count')
+        .attr('x', x + cell_size / 2)
+        .attr('y', y + cell_size / 2)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', cell_size > 40 ? '14px' : '11px')
+        .attr('data-base-font-size', cell_size > 40 ? 14 : 11)
+        .attr('font-weight', 'bold')
+        .attr('fill', node.heat > 0.5 ? '#fff' : '#333')
+        .attr('data-cell-width', cell_size)
+        .attr('data-cell-height', cell_size)
+        .style('pointer-events', 'none')
+        .text(caller_count);
+
+      // Function name below cell
+      const max_chars = Math.floor(cell_size / 6);
+      label_overlay
+        .append('text')
+        .attr('class', 'heatmap-label heatmap-label-name')
+        .attr('x', x + cell_size / 2)
+        .attr('y', y + cell_size + 12)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '9px')
+        .attr('data-base-font-size', 9)
+        .attr('fill', '#666')
+        .attr('data-cell-width', cell_size)
+        .attr('data-cell-height', cell_size)
+        .attr('data-label-type', 'name')
+        .attr('data-name', node.symbol)
+        .style('pointer-events', 'none')
+        .text(cell_size >= 30 ? truncate_string(node.symbol, max_chars) : '')
+        .append('title')
+        .text(`${node.symbol} (${caller_count} callers)`);
     });
 
     // Add legend at bottom
     const legend_y = height - label_height + 10;
-    const legend_g = heatmap_g
+    const legend_g = label_overlay
       .append('g')
       .attr('transform', `translate(${width / 2 - 100}, ${legend_y})`);
 
     legend_g
       .append('text')
+      .attr('class', 'heatmap-label')
       .attr('x', 0)
       .attr('y', 0)
       .attr('font-size', '10px')
+      .attr('data-base-font-size', 10)
       .attr('fill', '#666')
       .text('Sorted by caller count (highest first). Color = heat intensity.');
   };
@@ -1619,20 +1661,14 @@ export const create_heatmap_renderer = (state, d3) => {
       children_map.get(e.from).push(e.to);
     });
 
-    // Recursively build tree starting from root
+    // Recursively build tree starting from root.
+    // Each node appears only once - subsequent references are skipped
+    // to avoid duplicating heavily-called functions across the tree.
     const visited = new Set();
     const build_tree = (node_id, depth = 0) => {
       if (visited.has(node_id) || depth > 10) {
-        // Prevent cycles and limit depth
-        const node = node_map.get(node_id);
-        return node
-          ? {
-              name: node.symbol,
-              value: Math.max(1, (node.caller_count || 0) + 1),
-              data: node,
-              is_cycle: true
-            }
-          : null;
+        // Already shown elsewhere in the tree or depth limit reached - skip
+        return null;
       }
 
       visited.add(node_id);
@@ -1683,12 +1719,16 @@ export const create_heatmap_renderer = (state, d3) => {
     treemap(root);
 
     // Draw cells - including parent containers
+    // Rectangles and tooltips go in cell groups; labels go in a separate
+    // overlay group so they always render on top of all rectangles.
     const cell = heatmap_g
-      .selectAll('g')
+      .selectAll('g.hier-cell')
       .data(root.descendants())
       .join('g')
+      .attr('class', (d) =>
+        d.children ? 'hier-cell treemap-parent' : 'hier-cell treemap-leaf'
+      )
       .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
-      .attr('class', (d) => (d.children ? 'treemap-parent' : 'treemap-leaf'))
       .style('cursor', 'pointer')
       .on('click', (event, d) => {
         event.stopPropagation();
@@ -1722,15 +1762,34 @@ export const create_heatmap_renderer = (state, d3) => {
       })
       .attr('stroke-width', 1);
 
-    // Parent labels at top
-    cell
-      .filter((d) => d.children)
-      .append('text')
-      .attr('x', 3)
-      .attr('y', 13)
+    // Tooltips on cells
+    cell.append('title').text((d) => {
+      const count = d.data.data?.caller_count || 0;
+      const project = d.data.data?.project || '';
+      const filename = d.data.data?.filename || '';
+      return `${d.data.name}\n${project}\n${filename}\n${count} callers`;
+    });
+
+    // Label overlay group - renders on top of all rectangles
+    const label_overlay = heatmap_g.append('g').attr('class', 'label-overlay');
+
+    // Parent labels at top (positioned absolutely using cell coords)
+    label_overlay
+      .selectAll('text.hier-parent-label')
+      .data(root.descendants().filter((d) => d.children))
+      .join('text')
+      .attr('class', 'heatmap-label heatmap-label-name hier-parent-label')
+      .attr('x', (d) => d.x0 + 3)
+      .attr('y', (d) => d.y0 + 13)
       .attr('font-size', '11px')
+      .attr('data-base-font-size', 11)
       .attr('font-weight', 'bold')
       .attr('fill', '#333')
+      .attr('data-cell-width', (d) => d.x1 - d.x0)
+      .attr('data-cell-height', (d) => d.y1 - d.y0)
+      .attr('data-label-type', 'name')
+      .attr('data-name', (d) => d.data.name)
+      .style('pointer-events', 'none')
       .text((d) => {
         const cell_width = d.x1 - d.x0;
         if (cell_width < 30) return '';
@@ -1738,14 +1797,22 @@ export const create_heatmap_renderer = (state, d3) => {
         return truncate_string(d.data.name, max_chars);
       });
 
-    // Leaf labels
-    cell
-      .filter((d) => !d.children)
-      .append('text')
-      .attr('x', 4)
-      .attr('y', 14)
+    // Leaf name labels (positioned absolutely using cell coords)
+    label_overlay
+      .selectAll('text.hier-leaf-label')
+      .data(root.descendants().filter((d) => !d.children))
+      .join('text')
+      .attr('class', 'heatmap-label heatmap-label-name hier-leaf-label')
+      .attr('x', (d) => d.x0 + 4)
+      .attr('y', (d) => d.y0 + 14)
       .attr('font-size', '10px')
+      .attr('data-base-font-size', 10)
       .attr('fill', '#333')
+      .attr('data-cell-width', (d) => d.x1 - d.x0)
+      .attr('data-cell-height', (d) => d.y1 - d.y0)
+      .attr('data-label-type', 'name')
+      .attr('data-name', (d) => d.data.name)
+      .style('pointer-events', 'none')
       .text((d) => {
         const cell_width = d.x1 - d.x0;
         const cell_height = d.y1 - d.y0;
@@ -1754,14 +1821,22 @@ export const create_heatmap_renderer = (state, d3) => {
         return truncate_string(d.data.name, max_chars);
       });
 
-    // Caller count for leaves
-    cell
-      .filter((d) => !d.children)
-      .append('text')
-      .attr('x', 4)
-      .attr('y', 26)
+    // Caller count for leaves (positioned absolutely using cell coords)
+    label_overlay
+      .selectAll('text.hier-leaf-count')
+      .data(root.descendants().filter((d) => !d.children))
+      .join('text')
+      .attr('class', 'heatmap-label heatmap-label-count hier-leaf-count')
+      .attr('x', (d) => d.x0 + 4)
+      .attr('y', (d) => d.y0 + 26)
       .attr('font-size', '9px')
+      .attr('data-base-font-size', 9)
       .attr('fill', '#666')
+      .attr('data-cell-width', (d) => d.x1 - d.x0)
+      .attr('data-cell-height', (d) => d.y1 - d.y0)
+      .attr('data-label-type', 'count')
+      .attr('data-count', (d) => d.data.data?.caller_count || 0)
+      .style('pointer-events', 'none')
       .text((d) => {
         const cell_width = d.x1 - d.x0;
         const cell_height = d.y1 - d.y0;
@@ -1769,14 +1844,6 @@ export const create_heatmap_renderer = (state, d3) => {
         const count = d.data.data?.caller_count || 0;
         return `${count}`;
       });
-
-    // Tooltips
-    cell.append('title').text((d) => {
-      const count = d.data.data?.caller_count || 0;
-      const project = d.data.data?.project || '';
-      const filename = d.data.data?.filename || '';
-      return `${d.data.name}\n${project}\n${filename}\n${count} callers`;
-    });
   };
 
   /**
@@ -1840,17 +1907,12 @@ export const create_heatmap_renderer = (state, d3) => {
         return `${d.data.name}\n${project}\n${filename}\n${count} callers`;
       });
 
-    // Add labels for segments that are large enough
+    // Add labels for all segments - visibility controlled by zoom
     sunburst_g
-      .selectAll('text')
-      .data(
-        root.descendants().filter((d) => {
-          const angle = d.x1 - d.x0;
-          const r = (d.y0 + d.y1) / 2;
-          return d.depth && angle * r > 20; // Only show if arc is long enough
-        })
-      )
+      .selectAll('text.sunburst-label')
+      .data(root.descendants().filter((d) => d.depth))
       .join('text')
+      .attr('class', 'heatmap-label sunburst-label')
       .attr('transform', (d) => {
         const x = ((d.x0 + d.x1) / 2) * (180 / Math.PI);
         const y = (d.y0 + d.y1) / 2;
@@ -1859,11 +1921,20 @@ export const create_heatmap_renderer = (state, d3) => {
       .attr('dy', '0.35em')
       .attr('text-anchor', 'middle')
       .attr('font-size', '9px')
+      .attr('data-base-font-size', 9)
       .attr('fill', (d) => (d.data.data?.heat > 0.5 ? '#fff' : '#333'))
+      .attr('data-label-type', 'sunburst')
+      .attr('data-name', (d) => d.data.name)
+      .attr('data-arc-length', (d) => {
+        const r = (d.y0 + d.y1) / 2;
+        const angle = d.x1 - d.x0;
+        return angle * r;
+      })
       .text((d) => {
         const r = (d.y0 + d.y1) / 2;
         const angle = d.x1 - d.x0;
         const arc_length = angle * r;
+        if (arc_length <= 20) return '';
         const max_chars = Math.floor(arc_length / 6);
         return truncate_string(d.data.name, Math.max(3, max_chars));
       });
@@ -1871,11 +1942,80 @@ export const create_heatmap_renderer = (state, d3) => {
     // Add center label
     sunburst_g
       .append('text')
+      .attr('class', 'heatmap-label')
       .attr('text-anchor', 'middle')
       .attr('dy', '0.35em')
       .attr('font-size', '12px')
+      .attr('data-base-font-size', 12)
       .attr('font-weight', 'bold')
       .text(truncate_string(hierarchy_data.name, 15));
+  };
+
+  /**
+   * Update label text and visibility based on current zoom scale.
+   * Applies inverse scale to text so font size stays constant,
+   * and recalculates which labels should be visible at the current zoom.
+   * @param {number} scale - Current zoom scale factor
+   */
+  const update_labels_for_zoom = (scale) => {
+    if (!heatmap_g) return;
+
+    const inverse_scale = 1 / scale;
+
+    // Update all heatmap labels with inverse scale so font size stays constant
+    // and recalculate which labels should be visible at the zoomed size
+    heatmap_g.selectAll('.heatmap-label').each(function () {
+      const el = d3.select(this);
+      const label_type = el.attr('data-label-type');
+      // Use data-base-font-size to avoid compounding scale errors
+      const base_font_size = parseFloat(el.attr('data-base-font-size'));
+
+      if (label_type === 'sunburst') {
+        // Sunburst labels: recalculate visibility based on apparent arc length
+        const arc_length = parseFloat(el.attr('data-arc-length')) || 0;
+        const apparent_length = arc_length * scale;
+        const name = el.attr('data-name') || '';
+        if (apparent_length <= 20) {
+          el.text('');
+        } else {
+          const max_chars = Math.floor(apparent_length / 6);
+          el.text(truncate_string(name, Math.max(3, max_chars)));
+        }
+        el.attr('font-size', `${base_font_size * inverse_scale}px`);
+      } else if (label_type === 'name') {
+        // Name labels: recalculate visibility and truncation
+        const cell_width = parseFloat(el.attr('data-cell-width')) || 0;
+        const cell_height = parseFloat(el.attr('data-cell-height')) || 0;
+        const apparent_width = cell_width * scale;
+        const apparent_height = cell_height * scale;
+        const name = el.attr('data-name') || '';
+
+        if (apparent_width < 40 || apparent_height < 18) {
+          el.text('');
+        } else {
+          const max_chars = Math.floor(apparent_width / 7);
+          el.text(truncate_string(name, max_chars));
+        }
+        el.attr('font-size', `${base_font_size * inverse_scale}px`);
+      } else if (label_type === 'count') {
+        // Count labels: recalculate visibility
+        const cell_width = parseFloat(el.attr('data-cell-width')) || 0;
+        const cell_height = parseFloat(el.attr('data-cell-height')) || 0;
+        const apparent_width = cell_width * scale;
+        const apparent_height = cell_height * scale;
+        const count = parseInt(el.attr('data-count'), 10) || 0;
+
+        if (apparent_width < 40 || apparent_height < 32) {
+          el.text('');
+        } else {
+          el.text(`${count} caller${count !== 1 ? 's' : ''}`);
+        }
+        el.attr('font-size', `${base_font_size * inverse_scale}px`);
+      } else {
+        // Generic labels (center labels, legend, etc.) - just counter-scale
+        el.attr('font-size', `${base_font_size * inverse_scale}px`);
+      }
+    });
   };
 
   /**
@@ -1899,12 +2039,14 @@ export const create_heatmap_renderer = (state, d3) => {
       .attr('width', width)
       .attr('height', height);
 
-    // Add zoom behavior
+    // Add zoom behavior - update labels on zoom to keep font sizes constant
+    // and reveal/hide labels based on apparent cell sizes
     heatmap_zoom = d3
       .zoom()
-      .scaleExtent([0.5, 4])
+      .scaleExtent([0.5, 8])
       .on('zoom', (event) => {
         heatmap_g.attr('transform', event.transform);
+        update_labels_for_zoom(event.transform.k);
       });
 
     heatmap_svg_element.call(heatmap_zoom);

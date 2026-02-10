@@ -17,7 +17,33 @@ export const create_function_handlers = (state, api, navigation) => {
    * @param {boolean} skip_url_update - Skip URL update
    */
   const select_function = async (fn, skip_url_update = false) => {
+    // Immediately switch to source tab and clear all stale tab data
+    // before any async work, so the UI updates right away
     state.show_call_graph.value = false;
+    state.active_tab.value = 'source';
+    state.callers.value = [];
+    state.callees.value = [];
+    state.class_members.value = [];
+    state.entity_references.value = [];
+    state.reference_definitions.value = [];
+    state.flowchart_data.value = null;
+    state.flowchart_error.value = '';
+    state.inline_call_graph_data.value = null;
+    state.inline_call_graph_error.value = '';
+    state.inline_call_graph_depth.value = 5;
+    state.selected_inline_graph_node.value = null;
+    state.reverse_call_graph_data.value = null;
+    state.reverse_call_graph_error.value = '';
+    state.reverse_call_graph_depth.value = 5;
+    state.selected_reverse_graph_node.value = null;
+    state.heatmap_data.value = null;
+    state.heatmap_error.value = '';
+    state.heatmap_depth.value = 3;
+    state.selected_heatmap_node.value = null;
+
+    // Set the function immediately so source is visible while we load details
+    state.selected_function.value = fn;
+    state.selected_file.value = fn.filename || null;
 
     // Determine the correct project for this function
     // Priority: fn.project or fn.project_name (from global search) > fn.project_id > current project
@@ -32,7 +58,6 @@ export const create_function_handlers = (state, api, navigation) => {
       if (matching_project) {
         state.selected_project.value = matching_project;
         state.current_directory.value = '';
-        state.selected_file.value = null;
         try {
           state.project_info.value = await api.load_project_info(
             matching_project.name
@@ -54,7 +79,6 @@ export const create_function_handlers = (state, api, navigation) => {
       ) {
         state.selected_project.value = matching_project;
         state.current_directory.value = '';
-        state.selected_file.value = null;
         try {
           state.project_info.value = await api.load_project_info(
             matching_project.name
@@ -68,39 +92,17 @@ export const create_function_handlers = (state, api, navigation) => {
 
     const project_name = target_project_name;
 
+    // Load full function details (may have more data than the node object)
     try {
       const results = await api.load_function_details(fn.symbol, project_name);
       if (results.length > 0) {
         state.selected_function.value =
           results.find((r) => r.id === fn.id) || results[0];
-      } else {
-        state.selected_function.value = fn;
       }
     } catch (error) {
       console.error('Failed to load function details:', error);
-      state.selected_function.value = fn;
+      // Keep fn as selected_function (already set above)
     }
-
-    state.active_tab.value = 'source';
-    state.callers.value = [];
-    state.callees.value = [];
-    state.class_members.value = [];
-    state.entity_references.value = [];
-    state.reference_definitions.value = [];
-    state.flowchart_data.value = null;
-    state.flowchart_error.value = '';
-    state.inline_call_graph_data.value = null;
-    state.inline_call_graph_error.value = '';
-    state.inline_call_graph_depth.value = 5; // Reset to default depth
-    state.selected_inline_graph_node.value = null;
-    state.reverse_call_graph_data.value = null;
-    state.reverse_call_graph_error.value = '';
-    state.reverse_call_graph_depth.value = 5; // Reset to default depth
-    state.selected_reverse_graph_node.value = null;
-    state.heatmap_data.value = null;
-    state.heatmap_error.value = '';
-    state.heatmap_depth.value = 3; // Reset to default depth
-    state.selected_heatmap_node.value = null;
 
     // If this is a class or struct, fetch its members
     if (
@@ -149,6 +151,11 @@ export const create_function_handlers = (state, api, navigation) => {
    * @param {string} filename - File path
    */
   const navigate_to_function = async (symbol, filename) => {
+    // Switch to source tab immediately before async work
+    state.active_tab.value = 'source';
+    state.callers.value = [];
+    state.callees.value = [];
+
     const project_name = state.selected_project.value?.name;
 
     try {
@@ -163,9 +170,6 @@ export const create_function_handlers = (state, api, navigation) => {
       console.error('Failed to navigate to function:', error);
     }
 
-    state.active_tab.value = 'source';
-    state.callers.value = [];
-    state.callees.value = [];
     navigation.update_url();
   };
 
