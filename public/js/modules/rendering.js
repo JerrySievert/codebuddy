@@ -461,6 +461,11 @@ const draw_graph_nodes = (
     .attr('text-anchor', 'middle')
     .text((d) => truncate_string(d.symbol, 20));
 
+  // Add tooltips with project and filename info
+  node
+    .append('title')
+    .text((d) => `${d.symbol}\n${d.project || ''}\n${d.filename || ''}`);
+
   return node;
 };
 
@@ -1575,7 +1580,11 @@ export const create_heatmap_renderer = (state, d3) => {
       }
 
       // Tooltip on hover
-      cell.append('title').text(`${node.symbol}\n${caller_count} callers`);
+      cell
+        .append('title')
+        .text(
+          `${node.symbol}\n${node.project || ''}\n${node.filename || ''}\n${caller_count} callers`
+        );
     });
 
     // Add legend at bottom
@@ -1764,7 +1773,9 @@ export const create_heatmap_renderer = (state, d3) => {
     // Tooltips
     cell.append('title').text((d) => {
       const count = d.data.data?.caller_count || 0;
-      return `${d.data.name}\n${count} callers`;
+      const project = d.data.data?.project || '';
+      const filename = d.data.data?.filename || '';
+      return `${d.data.name}\n${project}\n${filename}\n${count} callers`;
     });
   };
 
@@ -1824,7 +1835,9 @@ export const create_heatmap_renderer = (state, d3) => {
       .append('title')
       .text((d) => {
         const count = d.data.data?.caller_count || 0;
-        return `${d.data.name}\n${count} callers`;
+        const project = d.data.data?.project || '';
+        const filename = d.data.data?.filename || '';
+        return `${d.data.name}\n${project}\n${filename}\n${count} callers`;
       });
 
     // Add labels for segments that are large enough

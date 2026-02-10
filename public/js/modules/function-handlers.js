@@ -19,13 +19,20 @@ export const create_function_handlers = (state, api, navigation) => {
   const select_function = async (fn, skip_url_update = false) => {
     state.show_call_graph.value = false;
 
-    // If no project selected and function has project info, select the project first
-    if (!state.selected_project.value && fn.project_id) {
+    // Determine the correct project for this function
+    // Priority: fn.project or fn.project_name (from global search) > fn.project_id > current project
+    const fn_project = fn.project || fn.project_name;
+    let target_project_name = fn_project || state.selected_project.value?.name;
+
+    // If function has a project name and it's different from current, switch projects
+    if (fn_project && fn_project !== state.selected_project.value?.name) {
       const matching_project = state.projects.value.find(
-        (p) => p.project_id === fn.project_id
+        (p) => p.name === fn_project
       );
       if (matching_project) {
         state.selected_project.value = matching_project;
+        state.current_directory.value = '';
+        state.selected_file.value = null;
         try {
           state.project_info.value = await api.load_project_info(
             matching_project.name
@@ -33,10 +40,33 @@ export const create_function_handlers = (state, api, navigation) => {
         } catch (error) {
           console.error('Failed to load project info:', error);
         }
+        target_project_name = matching_project.name;
+      }
+    }
+    // Fallback: use project_id to find and switch to the correct project
+    else if (fn.project_id) {
+      const matching_project = state.projects.value.find(
+        (p) => p.project_id === fn.project_id
+      );
+      if (
+        matching_project &&
+        matching_project.name !== state.selected_project.value?.name
+      ) {
+        state.selected_project.value = matching_project;
+        state.current_directory.value = '';
+        state.selected_file.value = null;
+        try {
+          state.project_info.value = await api.load_project_info(
+            matching_project.name
+          );
+        } catch (error) {
+          console.error('Failed to load project info:', error);
+        }
+        target_project_name = matching_project.name;
       }
     }
 
-    const project_name = state.selected_project.value?.name;
+    const project_name = target_project_name;
 
     try {
       const results = await api.load_function_details(fn.symbol, project_name);

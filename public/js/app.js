@@ -48,6 +48,9 @@ createApp({
     // Create all state refs
     const state = create_state(ref);
 
+    // Ref for global search wrapper (for positioning dropdown)
+    const global_search_wrapper = ref(null);
+
     // Create formatters
     const formatters = create_formatters();
 
@@ -343,6 +346,21 @@ createApp({
         .replace(/\n/g, '<br>');
     });
 
+    /**
+     * Computed property for global search dropdown positioning.
+     * Uses fixed positioning to escape overflow:hidden on header.
+     */
+    const global_dropdown_style = computed(() => {
+      if (!global_search_wrapper.value) return {};
+      const rect = global_search_wrapper.value.getBoundingClientRect();
+      return {
+        position: 'fixed',
+        top: `${rect.bottom + 4}px`,
+        left: `${rect.left}px`,
+        minWidth: `${Math.max(rect.width, 400)}px`
+      };
+    });
+
     // ========================================
     // View function details from graph node
     // ========================================
@@ -519,6 +537,8 @@ createApp({
       globalSearchSuggestions: state.global_search_suggestions,
       showGlobalAutocomplete: state.show_global_autocomplete,
       globalAutocompleteIndex: state.global_autocomplete_index,
+      globalSearchWrapper: global_search_wrapper,
+      globalDropdownStyle: global_dropdown_style,
       showGlobalSearchResults: state.show_global_search_results,
       globalSearchResults: state.global_search_results,
       globalSearchLoading: state.global_search_loading,
@@ -700,8 +720,12 @@ createApp({
       onGlobalSearchInput: global_search_handlers.on_global_search_input,
       navigateGlobalAutocomplete:
         global_search_handlers.navigate_global_autocomplete,
-      selectGlobalAutocompleteItem:
-        global_search_handlers.select_global_autocomplete_item,
+      selectGlobalAutocompleteItem: () => {
+        const fn = global_search_handlers.select_global_autocomplete_item();
+        if (fn) {
+          function_handlers.select_function(fn);
+        }
+      },
       executeGlobalSearch: global_search_handlers.execute_global_search,
       loadMoreGlobalResults: global_search_handlers.load_more_global_results,
       selectGlobalSuggestion: (fn) => {

@@ -1,6 +1,6 @@
 {
   "name": "codebuddy",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "index.mjs",
   "license": "MIT",
   "dependencies": {
@@ -15,11 +15,15 @@
     "@opentelemetry/sdk-node": "^0.56.0",
     "@opentelemetry/sdk-trace-node": "^1.29.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
+    "@resvg/resvg-js": "^2.6.2",
     "@tree-sitter-grammars/tree-sitter-zig": "^1.1.2",
+    "d3": "^7.9.0",
     "ignore": "^7.0.5",
     "isomorphic-git": "^1.36.1",
+    "jsdom": "^27.4.0",
     "minimist": "^1.2.8",
     "postgres": "^3.4.7",
+    "sharp": "^0.34.5",
     "tree-sitter": "^0.25.0",
     "tree-sitter-c": "^0.24.1",
     "tree-sitter-c-sharp": "^0.23.1",

@@ -51,7 +51,7 @@
           </div>
           <!-- Global Search -->
           <div class="header-search">
-            <div class="global-search-wrapper">
+            <div class="global-search-wrapper" ref="globalSearchWrapper">
               <input
                 v-model="globalSearchQuery"
                 @input="onGlobalSearchInput"
@@ -68,6 +68,7 @@
               <div
                 v-if="showGlobalAutocomplete && globalSearchSuggestions.length > 0"
                 class="global-autocomplete-dropdown"
+                :style="globalDropdownStyle"
               >
                 <div
                   v-for="(fn, index) in globalSearchSuggestions"
@@ -545,6 +546,12 @@
                     selectedGraphNode.parameters || '' }}
                   </div>
                   <div class="node-info-body">
+                    <div v-if="selectedGraphNode.project" class="node-info-row">
+                      <div class="node-info-label">Project</div>
+                      <div class="node-info-value">
+                        {{ selectedGraphNode.project }}
+                      </div>
+                    </div>
                     <div class="node-info-row">
                       <div class="node-info-label">Location</div>
                       <div class="node-info-value">
@@ -583,14 +590,14 @@
                       <button
                         v-if="graphViewType === 'callgraph'"
                         class="btn-secondary"
-                        @click="loadCallGraphForNode(selectedGraphNode.symbol)"
+                        @click="loadCallGraphForNode(selectedGraphNode)"
                       >
                         Recenter Graph
                       </button>
                       <button
                         v-else
                         class="btn-secondary"
-                        @click="recenterTreeOnNode(selectedGraphNode.symbol)"
+                        @click="recenterTreeOnNode(selectedGraphNode)"
                       >
                         Recenter Tree
                       </button>
@@ -4093,6 +4100,15 @@
                       selectedInlineGraphNode.parameters || '' }}
                     </div>
                     <div class="node-info-body">
+                      <div
+                        v-if="selectedInlineGraphNode.project"
+                        class="node-info-row"
+                      >
+                        <div class="node-info-label">Project</div>
+                        <div class="node-info-value">
+                          {{ selectedInlineGraphNode.project }}
+                        </div>
+                      </div>
                       <div class="node-info-row">
                         <div class="node-info-label">Location</div>
                         <div class="node-info-value">
@@ -4118,7 +4134,7 @@
                         </button>
                         <button
                           class="btn-secondary"
-                          @click="recenterInlineGraph(selectedInlineGraphNode.symbol)"
+                          @click="recenterInlineGraph(selectedInlineGraphNode)"
                         >
                           Recenter Graph
                         </button>
@@ -4226,6 +4242,15 @@
                       selectedReverseGraphNode.parameters || '' }}
                     </div>
                     <div class="node-info-body">
+                      <div
+                        v-if="selectedReverseGraphNode.project"
+                        class="node-info-row"
+                      >
+                        <div class="node-info-label">Project</div>
+                        <div class="node-info-value">
+                          {{ selectedReverseGraphNode.project }}
+                        </div>
+                      </div>
                       <div class="node-info-row">
                         <div class="node-info-label">Location</div>
                         <div class="node-info-value">
@@ -4251,7 +4276,7 @@
                         </button>
                         <button
                           class="btn-secondary"
-                          @click="recenterReverseGraph(selectedReverseGraphNode.symbol)"
+                          @click="recenterReverseGraph(selectedReverseGraphNode)"
                         >
                           Recenter Graph
                         </button>
@@ -4455,6 +4480,15 @@
                       selectedHeatmapNode.parameters || '' }}
                     </div>
                     <div class="node-info-body">
+                      <div
+                        v-if="selectedHeatmapNode.project"
+                        class="node-info-row"
+                      >
+                        <div class="node-info-label">Project</div>
+                        <div class="node-info-value">
+                          {{ selectedHeatmapNode.project }}
+                        </div>
+                      </div>
                       <div class="node-info-row">
                         <div class="node-info-label">Location</div>
                         <div class="node-info-value">
@@ -4486,7 +4520,7 @@
                         </button>
                         <button
                           class="btn-secondary"
-                          @click="recenterHeatmap(selectedHeatmapNode.symbol)"
+                          @click="recenterHeatmap(selectedHeatmapNode)"
                         >
                           Recenter
                         </button>

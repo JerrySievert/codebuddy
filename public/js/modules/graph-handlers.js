@@ -45,9 +45,19 @@ export const create_call_graph_handlers = (
 
   /**
    * Load call graph data for a node.
-   * @param {string} function_name - Function symbol
+   * @param {string|Object} symbol_or_node - Function symbol or node object with symbol and project
    */
-  const load_call_graph_for_node = async (function_name) => {
+  const load_call_graph_for_node = async (symbol_or_node) => {
+    // Handle both string (symbol) and object (node) inputs
+    const function_name =
+      typeof symbol_or_node === 'string'
+        ? symbol_or_node
+        : symbol_or_node.symbol;
+    const project_name =
+      typeof symbol_or_node === 'object' && symbol_or_node.project
+        ? symbol_or_node.project
+        : state.selected_project.value.name;
+
     state.loading_call_graph.value = true;
     state.call_graph_root.value = function_name;
     state.selected_graph_node.value = null;
@@ -55,7 +65,7 @@ export const create_call_graph_handlers = (
     try {
       state.call_graph_data.value = await api.load_call_graph(
         function_name,
-        state.selected_project.value.name,
+        project_name,
         0 // Unlimited depth - filter client-side
       );
     } catch (error) {
@@ -118,10 +128,20 @@ export const create_call_graph_handlers = (
 
   /**
    * Load caller or callee tree.
-   * @param {string} function_name - Function symbol
+   * @param {string|Object} symbol_or_node - Function symbol or node object with symbol and project
    * @param {string} view_type - View type (callers or callees)
    */
-  const load_tree_view = async (function_name, view_type) => {
+  const load_tree_view = async (symbol_or_node, view_type) => {
+    // Handle both string (symbol) and object (node) inputs
+    const function_name =
+      typeof symbol_or_node === 'string'
+        ? symbol_or_node
+        : symbol_or_node.symbol;
+    const project_name =
+      typeof symbol_or_node === 'object' && symbol_or_node.project
+        ? symbol_or_node.project
+        : state.selected_project.value.name;
+
     state.loading_call_graph.value = true;
     state.tree_data.value = null;
     state.call_graph_data.value = null;
@@ -130,7 +150,7 @@ export const create_call_graph_handlers = (
     try {
       const data = await api.load_tree(
         function_name,
-        state.selected_project.value.name,
+        project_name,
         view_type,
         state.tree_depth.value
       );
@@ -165,11 +185,16 @@ export const create_call_graph_handlers = (
 
   /**
    * Recenter tree on a different node.
-   * @param {string} symbol - Function symbol
+   * @param {string|Object} symbol_or_node - Function symbol or node object with symbol and project
    */
-  const recenter_tree_on_node = async (symbol) => {
+  const recenter_tree_on_node = async (symbol_or_node) => {
+    // Handle both string (symbol) and object (node) inputs
+    const symbol =
+      typeof symbol_or_node === 'string'
+        ? symbol_or_node
+        : symbol_or_node.symbol;
     state.call_graph_root.value = symbol;
-    await load_tree_view(symbol, state.graph_view_type.value);
+    await load_tree_view(symbol_or_node, state.graph_view_type.value);
   };
 
   /**
@@ -354,19 +379,25 @@ export const create_inline_graph_handlers = (
 
   /**
    * Recenter inline call graph on a different function.
-   * @param {string} symbol - Function symbol
+   * @param {string|Object} symbol_or_node - Function symbol or node object with symbol and project
    */
-  const recenter_inline_graph = async (symbol) => {
+  const recenter_inline_graph = async (symbol_or_node) => {
+    // Handle both string (symbol) and object (node) inputs
+    const symbol =
+      typeof symbol_or_node === 'string'
+        ? symbol_or_node
+        : symbol_or_node.symbol;
+    const project_name =
+      typeof symbol_or_node === 'object' && symbol_or_node.project
+        ? symbol_or_node.project
+        : state.selected_project.value.name;
+
     state.loading_inline_call_graph.value = true;
     state.inline_call_graph_error.value = '';
     state.selected_inline_graph_node.value = null;
 
     try {
-      const data = await api.load_call_graph(
-        symbol,
-        state.selected_project.value.name,
-        0
-      );
+      const data = await api.load_call_graph(symbol, project_name, 0);
 
       if (data.error) {
         state.inline_call_graph_error.value = data.error;
@@ -475,17 +506,27 @@ export const create_reverse_graph_handlers = (
 
   /**
    * Recenter reverse call graph on a different function.
-   * @param {string} symbol - Function symbol
+   * @param {string|Object} symbol_or_node - Function symbol or node object with project info
    */
-  const recenter_reverse_graph = async (symbol) => {
+  const recenter_reverse_graph = async (symbol_or_node) => {
     state.loading_reverse_call_graph.value = true;
     state.reverse_call_graph_error.value = '';
     state.selected_reverse_graph_node.value = null;
 
+    // Handle both string (symbol) and object (node) inputs
+    const symbol =
+      typeof symbol_or_node === 'string'
+        ? symbol_or_node
+        : symbol_or_node.symbol;
+    const project_name =
+      typeof symbol_or_node === 'object' && symbol_or_node.project
+        ? symbol_or_node.project
+        : state.selected_project.value.name;
+
     try {
       const data = await api.load_reverse_call_graph(
         symbol,
-        state.selected_project.value.name,
+        project_name,
         state.reverse_call_graph_depth.value
       );
 
@@ -596,17 +637,27 @@ export const create_heatmap_handlers = (
 
   /**
    * Recenter heatmap on a different function.
-   * @param {string} symbol - Function symbol
+   * @param {string|Object} symbol_or_node - Function symbol or node object with project info
    */
-  const recenter_heatmap = async (symbol) => {
+  const recenter_heatmap = async (symbol_or_node) => {
     state.loading_heatmap.value = true;
     state.heatmap_error.value = '';
     state.selected_heatmap_node.value = null;
 
+    // Handle both string (symbol) and object (node) inputs
+    const symbol =
+      typeof symbol_or_node === 'string'
+        ? symbol_or_node
+        : symbol_or_node.symbol;
+    const project_name =
+      typeof symbol_or_node === 'object' && symbol_or_node.project
+        ? symbol_or_node.project
+        : state.selected_project.value.name;
+
     try {
       const data = await api.load_heatmap(
         symbol,
-        state.selected_project.value.name,
+        project_name,
         state.heatmap_depth.value
       );
 

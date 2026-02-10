@@ -93,11 +93,12 @@ export const create_global_search_handlers = (state, api, update_url) => {
 
     if (has_selection) {
       // User selected a specific suggestion - navigate to it
-      select_global_suggestion(
+      const fn =
         state.global_search_suggestions.value[
           state.global_autocomplete_index.value
-        ]
-      );
+        ];
+      select_global_suggestion(fn);
+      return fn;
     } else {
       // User pressed enter without selecting a specific item
       // Close autocomplete and show full search results page

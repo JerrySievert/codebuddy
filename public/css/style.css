@@ -3882,10 +3882,12 @@ header h1 {
   min-width: 150px;
   max-width: 300px;
   margin: 0 20px;
+  overflow: visible;
 }
 
 .global-search-wrapper {
   position: relative;
+  overflow: visible;
 }
 
 .global-search-input {
@@ -3912,10 +3914,6 @@ header h1 {
 }
 
 .global-autocomplete-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
@@ -4235,7 +4233,6 @@ header h1 {
   border-top: 1px solid #eee;
   margin: 24px 0;
 }
-
 
 /* Heatmap Treemap Styles */
 .heatmap-controls-bottom {
