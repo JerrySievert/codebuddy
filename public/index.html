@@ -4723,6 +4723,7 @@
         v-if="showImportModal"
         class="modal-overlay"
         @click.self="closeImportModal"
+        @keydown.escape="closeImportModal"
       >
         <div class="modal">
           <div class="modal-header">
@@ -4747,6 +4748,8 @@
                 type="text"
                 placeholder="e.g., /path/to/project or https://github.com/user/repo"
                 :disabled="importing"
+                @keydown.enter="importPath && !importing && importProject()"
+                @vue:mounted="({ el }) => el.focus()"
               />
               <div class="hint">
                 Enter a local file path or a public Git repository URL
@@ -4761,6 +4764,7 @@
                 type="text"
                 placeholder="Leave blank to auto-detect from path"
                 :disabled="importing"
+                @keydown.enter="importPath && !importing && importProject()"
               />
             </div>
           </div>
